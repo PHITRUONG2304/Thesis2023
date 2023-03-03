@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scenario>
+	<set-param t="7250" module="Nodes[0].app[0]" par="getSensorDataInterval" value="180s"/>
+	<set-param t="7250" module="Nodes[1].app[0]" par="getSensorDataInterval" value="180s"/>
+	<set-param t="7250" module="Nodes[2].app[0]" par="getSensorDataInterval" value="180s"/>
+	<set-param t="7250" module="Nodes[3].app[0]" par="getSensorDataInterval" value="180s"/>
+	<set-param t="7250" module="Nodes[4].app[0]" par="getSensorDataInterval" value="180s"/>
+	<set-param t="7250" module="Nodes[5].app[0]" par="getSensorDataInterval" value="180s"/>
+	<set-param t="7250" module="Nodes[6].app[0]" par="getSensorDataInterval" value="180s"/>
+	<set-param t="7250" module="Nodes[7].app[0]" par="getSensorDataInterval" value="180s"/>
+	<set-param t="7250" module="Nodes[8].app[0]" par="getSensorDataInterval" value="180s"/>
+	<set-param t="7250" module="Nodes[9].app[0]" par="getSensorDataInterval" value="180s"/>
+	<set-param t="7250" module="Nodes[10].app[0]" par="getSensorDataInterval" value="180s"/>
+	<set-param t="7250" module="Nodes[11].app[0]" par="getSensorDataInterval" value="180s"/>
+	<set-param t="7250" module="Nodes[12].app[0]" par="getSensorDataInterval" value="180s"/>
+	<set-param t="7250" module="Nodes[13].app[0]" par="getSensorDataInterval" value="180s"/>
+	<set-param t="7250" module="Nodes[14].app[0]" par="getSensorDataInterval" value="180s"/>
+	<set-param t="7250" module="Nodes[15].app[0]" par="getSensorDataInterval" value="180s"/>
+	<set-param t="7250" module="Nodes[16].app[0]" par="getSensorDataInterval" value="180s"/>
+	<set-param t="7250" module="Nodes[17].app[0]" par="getSensorDataInterval" value="180s"/>
+	<set-param t="7250" module="Nodes[18].app[0]" par="getSensorDataInterval" value="180s"/>
+	<set-param t="7250" module="Nodes[19].app[0]" par="getSensorDataInterval" value="180s"/>
+</scenario>

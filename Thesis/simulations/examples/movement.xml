@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF8"?>
+<movements>
+    <movement id="1">
+        <!-- draw a square -->
+        <turn angle="60"/>
+        <set speed="2000" x="12100" y="11500"/>
+        <wait t="200"/>
+        <forward d="2000"/>
+        <turn angle="90"/>
+        <forward d="1000"/>
+        
+        <wait t="500000"/>
+    </movement>
+
+</movements>
