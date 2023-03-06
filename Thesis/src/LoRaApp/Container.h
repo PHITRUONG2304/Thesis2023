@@ -15,8 +15,10 @@
 #include "inet/common/lifecycle/LifecycleOperation.h"
 
 #include "LoRaAppPacket_m.h"
+#include "mCommand_m.h"
 #include "TDMA.h"
 #include "ReviseHEAT.h"
+
 #include "LoRa/LoRaRadio.h"
 #include <queue>
 
@@ -60,8 +62,7 @@ namespace flora
         NORMAL,
         DISPATCHING,
         ACK_FAIL,
-        ACK_SUCCESS,
-        DISPATCH_AGAIN
+        ACK_SUCCESS
     };
 
     struct Container_El
@@ -73,17 +74,20 @@ namespace flora
     class Container : public cSimpleModule, public ILifecycle
     {
     private:
-        uint8_t max_communication_neighbors;
-        uint8_t currentNeighbors;
+        int max_communication_neighbors;
+        int currentNeighbors;
         Container_El *neighborData;
         State fsmState = NORMAL;
         ReviseHEAT *myHEATer;
 
     protected:
         void initialize(int stage) override;
+        int numInitStages() const override { return NUM_INIT_STAGES; }
         void finish() override;
         virtual bool handleOperationStage(LifecycleOperation *operation, IDoneCallback *doneCallback) override;
         void handleMessage(cMessage *msg) override;
+        bool isAlreadyExistNeighbor(MacAddress addr);
+        void addNewNeighborContainer(MacAddress addr);
 
     public:
         void handleWithFsm(LoRaAppPacket *packet = NULL);
@@ -91,6 +95,7 @@ namespace flora
         bool disPatchPacket(LoRaAppPacket packet);
         void generatingPacket();
         bool canAddMore(MacAddress addr);
+        void printTable();
     };
 
 }

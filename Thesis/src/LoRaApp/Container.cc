@@ -10,6 +10,7 @@
 #include "inet/mobility/static/StationaryMobility.h"
 #include "../LoRa/LoRaTagInfo_m.h"
 #include "inet/common/packet/Packet.h"
+#include <iomanip>
 
 namespace flora
 {
@@ -83,16 +84,16 @@ namespace flora
         cSimpleModule::initialize(stage);
         if (stage == INITSTAGE_LOCAL)
         {
-            EV << "Initializing stage " << stage << "at Container\n";
+            EV << "Initializing stage " << stage << ", at Container\n";
         }
         else if (stage == INITSTAGE_APPLICATION_LAYER)
         {
-            EV << "Initializing stage " << stage << "at Container\n";
+            EV << "Initializing stage " << stage << ", at Container\n";
             this->max_communication_neighbors = par("max_neighbors").intValue();
             this->currentNeighbors = 0;
 
             this->neighborData = new Container_El[this->max_communication_neighbors];
-            for (uint8_t i = 0; i < this->max_communication_neighbors; i++)
+            for (int i = 0; i < this->max_communication_neighbors; i++)
             {
                 this->neighborData[i].addr = MacAddress::UNSPECIFIED_ADDRESS;
                 this->neighborData[i].Dqueue = DataQueue(par("queue_length").intValue());
@@ -103,7 +104,8 @@ namespace flora
 
     void Container::finish()
     {
-        //    delete[] neighborData;
+//        printTable();
+//        delete[] neighborData;
     }
 
     bool Container::handleOperationStage(LifecycleOperation *operation, IDoneCallback *doneCallback)
@@ -116,6 +118,39 @@ namespace flora
 
     void Container::handleMessage(cMessage *msg)
     {
+        EV <<"I am received a command from lower layer\n";
+        if(msg->isPacket())
+        {
+
+        }
+        else
+        {
+            if(msg->getKind() == UPDATE_NEIGHBOR_INFO)
+            {
+                auto command = check_and_cast<mCommand *>(msg);
+                this->addNewNeighborContainer(command->getAddress());
+            }
+        }
+    }
+
+    bool Container::isAlreadyExistNeighbor(MacAddress addr)
+    {
+        for(int i=0; i < this->currentNeighbors; i++)
+        {
+            if(this->neighborData[i].addr == addr)
+                return true;
+        }
+        return false;
+    }
+    void Container::addNewNeighborContainer(MacAddress addr)
+    {
+        if(!isAlreadyExistNeighbor(addr))
+        {
+            this->neighborData[currentNeighbors].addr = addr;
+            currentNeighbors += 1;
+        }
+        else
+            EV <<"Neighbor already exists" << endl;
     }
 
     void Container::handleWithFsm(LoRaAppPacket *packet)
@@ -142,23 +177,14 @@ namespace flora
             cout << "ACK Fail" << endl;
 
             // completed send ACK
-            this->fsmState = DISPATCH_AGAIN;
+            // TODO
             break;
 
         case ACK_SUCCESS:
             // send function ack about dispatch success
             cout << "ACK Success" << endl;
             break;
-
-        case DISPATCH_AGAIN:
-            if (packet->getMsgType() == (AppPacketType)ACCEPT_ANOTHER_PATH)
-                this->disPatchPacket(*(packet));
-            break;
         }
-    }
-
-    void Container::handleWithFsmWhenReceivePacket(LoRaAppPacket *packet)
-    {
     }
 
     bool Container::disPatchPacket(LoRaAppPacket packet)
@@ -169,7 +195,7 @@ namespace flora
         if (destAddr == MacAddress::UNSPECIFIED_ADDRESS)
             return false;
 
-        for (uint8_t i = 0; i < this->currentNeighbors; i++)
+        for (int i = 0; i < this->currentNeighbors; i++)
         {
             if (this->neighborData[i].addr == destAddr)
             {
@@ -207,5 +233,14 @@ namespace flora
         newPacket.setGeneratedTime(simTime());
 
         this->disPatchPacket(newPacket);
+    }
+
+    void Container::printTable()
+    {
+        EV_INFO << std::left << std::setw(2) << "|" << std::left << std::setw(17) << "Address" <<std::left << std::setw(2) << " " << endl;
+
+        for(int i = 0; i < this->currentNeighbors; i++){
+                EV_INFO << std::left << std::setw(2) << "|" << std::left << std::setw(17) << this->neighborData[i].addr <<std::left << std::setw(2) << " " << endl;
+        }
     }
 }

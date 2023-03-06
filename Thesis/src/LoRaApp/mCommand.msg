@@ -28,11 +28,12 @@ enum mCommandType
     SEND_ACCEPT_ACK = 3;
     SEND_REFUSE_ACK = 4;
     UPDATE_NEIGHBOR_INFO = 5;
+    SEND_UPDATE_HEAT = 6;
 }
 
 message mCommand extends cMessage {
     inet::MacAddress address;
-    uint8_t slot;
+    int slot;
     
     double PRR;
     simtime_t timeToGW;

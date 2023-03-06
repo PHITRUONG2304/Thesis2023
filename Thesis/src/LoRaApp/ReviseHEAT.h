@@ -48,30 +48,36 @@ namespace flora
     {
     private:
         bool iAmGateway;
-        uint8_t max_neighbors;
+        int max_neighbors;
         HEAT_Field current_HEAT;
-        uint8_t currentNeighbors;
+        int currentNeighbors;
         Neighbor_Info *neighbor_Table;
         int currentPath = -1;
+        bool updatedInCurrentSlot = false;
 
         TDMA *myTDMA;
         Deliverer *myDeliverer;
         Container *myContainer;
 
-        void calculateHEATField();
-        void sortNeighborTable();
 
     protected:
         void initialize(int stage) override;
+        int numInitStages() const override { return NUM_INIT_STAGES; }
         void finish() override;
         virtual bool handleOperationStage(LifecycleOperation *operation, IDoneCallback *doneCallback) override;
         virtual void handleMessage(cMessage *msg) override;
+        void calculateHEATField();
+        void sortNeighborTable();
 
     public:
         HEAT_Field getCurrentHEAT();
-        void updateNeighborTable(MacAddress addr, double PRR, double timeToGW, double timestamp);
+        void updateNeighborTable(MacAddress addr, double PRR, simtime_t timeToGW, simtime_t timestamp);
+        void addNewNeighborIntoTable(MacAddress addr, double PRR, simtime_t timeToGW, simtime_t timestamp);
+        int isAlreadyExistNeighbor(MacAddress addr);
         MacAddress getCurrentPathToGW();
         bool canUpdate() { return (current_HEAT.PRR != 0) ? true : false; }
+        void printTable();
+        simtime_t getCurrentTimeToGW();
     };
 
 }

@@ -64,12 +64,16 @@ class Deliverer : public cSimpleModule, public ILifecycle
         void sendDATA_packet(MacAddress destination, LoRaAppPacket packet);
         void sendACK_packet(MacAddress destination, bool success);
 
-        void sendFreeslot_packet(uint8_t slot, double myPRR, simtime_t timeToGW);
-        void requestCommunicationSlot(MacAddress destination, uint8_t slot);
-        void sendACKrequestSlot(MacAddress destination, int slot, bool accept);
+        void sendFreeslot_packet(int slot, double myPRR, simtime_t timeToGW);
+        void requestCommunicationSlot(MacAddress destination, int slot);
+        void sendACKrequestSlot(MacAddress destination, int slot, bool accept, double myPRR = 0, simtime_t timeToGW = 0);
 
         double getNeighborQuality(MacAddress addr);
+        bool isAlreadyExistNeighbor(MacAddress addr);
+        void addNewNeighbor(MacAddress addr);
         void updateNeighborQuality(MacAddress addr, bool state);
+        void printTable();
+        void removeNeighbor(MacAddress addr);
 //      ****************************************************** EDIT *****************************************************     //
 };
 }

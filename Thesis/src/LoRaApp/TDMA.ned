@@ -21,8 +21,9 @@ simple TDMA
         int max_neighbors = default(10);
         double timeslot_size @unit(s) = default(5000ms);
         double timeout_grant @unit(s) = default(500ms);
-        double timeout_request @unit(s) = default(200ms);
+        double request_again_interval @unit(s) = default(200ms);
         double transmittion_time @unit(s) = default(80ms);
+        int request_again_times = default(3);
         
     gates:
         input socketIn @labels(TDMA/lowerIn);

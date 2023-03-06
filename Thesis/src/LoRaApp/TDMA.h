@@ -11,7 +11,6 @@
 #include "LoRaAppPacket_m.h"
 #include "LoRa/LoRaMacControlInfo_m.h"
 #include "LoRa/LoRaRadio.h"
-#include "LoRaAppPacket_m.h"
 #include "mCommand_m.h"
 #include <queue>
 
@@ -28,41 +27,44 @@ enum TDMA_STATE {
 
 struct Communication_Slot {
     MacAddress addr;
-    uint8_t slot = 0;
+    int slot = 0;
     simtime_t timestamp = 0;
     bool isBusy;
+    bool waitUpdateFrom;
 };
 
 class RandomRequestMessage : public cMessage
 {
 private:
-    uint8_t slot;
+    int slot;
     MacAddress addr;
 public:
-    RandomRequestMessage(const char *name = nullptr, MacAddress addr = MacAddress::UNSPECIFIED_ADDRESS, uint8_t slot = 0): cMessage(name)
+    RandomRequestMessage(const char *name = nullptr, MacAddress addr = MacAddress::UNSPECIFIED_ADDRESS, int slot = 0): cMessage(name)
     {
         this->slot = slot;
         this->addr = addr;
     }
     MacAddress getAddress() const {return this->addr;}
-    uint8_t getRequestSlot() const {return this->slot;}
+    int getRequestSlot() const {return this->slot;}
 };
 
 class TDMA : public cSimpleModule, public ILifecycle
 {
     private:
-        uint8_t current_slot;
+        int current_slot;
         simtime_t timeslot_start_time;
-        uint8_t max_communication_neighbors;
-        uint8_t currentNeighbors;
+        int max_communication_neighbors;
+        int currentNeighbors;
         simtime_t timeslotSize;
         Communication_Slot* connectedNeighbors;
         TDMA_STATE state;
 
-        cMessage *grantFreeSlot;
         cMessage *changeSlot;
+        cMessage *grantFreeSlot;
         cMessage *timeOutGrant;
         RandomRequestMessage *randomRequest;
+        cMessage *randomUpdate;
+        int request_again_times;
 
     protected:
         virtual void initialize(int stage) override;
@@ -74,15 +76,17 @@ class TDMA : public cSimpleModule, public ILifecycle
         virtual void handlePacketFromLowerLayer(Packet *packet);
         virtual bool handleOperationStage(LifecycleOperation *operation, IDoneCallback *doneCallback) override;
         void printTable();
-        void removeNeighborCommunication(MacAddress src);
+        void removeNeighbor(MacAddress addr);
     public:
 
         void handleWithFsm(Packet *pkt);
         bool isAvailableSlot(int slot, MacAddress src);
-        void updateCommunicationSlot(MacAddress addr, uint8_t slotNumber, simtime_t timestamp);
-        simtime_t getShortestWaitingTime(MacAddress src, MacAddress dest);
+        void updateCommunicationSlot(MacAddress addr, int slotNumber, simtime_t timestamp, bool waitUpdateFrom);
+        simtime_t getShortestWaitingTime(MacAddress dest);
         bool hasEstablishedCommunicationWith(MacAddress src);
-        uint8_t getCurrentSlot(){return this->current_slot;}
+        int getCurrentSlot(){return this->current_slot;}
+        simtime_t getCurrentTimeSlotStartTime(){return this->timeslot_start_time;}
+        bool needUpdateMore(MacAddress addr);
 
 };
 

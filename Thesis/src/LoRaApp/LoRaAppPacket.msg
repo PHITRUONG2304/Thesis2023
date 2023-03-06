@@ -34,7 +34,6 @@ enum AppPacketType
     FORWARD_PACKET = 7;
     UNABLE_RECEIVE_MORE = 8;
     RECEIVED_SUCCESS = 9;
-    ACCEPT_ANOTHER_PATH = 10;
 }
 
 class LoRaOptions {
@@ -55,7 +54,7 @@ class LoRaAppPacket extends inet::FieldsChunk {
     int slot; 
     int payload;
     uint32_t seqNum;
-    uint8_t hopNum;
+    int hopNum;
     inet::MacAddress originAddress;
     LoRaOptions options;
 }
