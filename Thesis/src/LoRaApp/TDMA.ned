@@ -21,14 +21,15 @@ simple TDMA
         int max_neighbors = default(10);
         double timeslot_size @unit(s) = default(5000ms);
         double timeout_grant @unit(s) = default(500ms);
-        double request_again_interval @unit(s) = default(200ms);
+        double send_again_interval @unit(s) = default(200ms);
         double transmittion_time @unit(s) = default(80ms);
-        int request_again_times = default(3);
+        int send_again_times = default(3);
         
-    gates:
-        input socketIn @labels(TDMA/lowerIn);
-        output Deliverer_O @labels(TDMA/TDMAtoDELIVERER);
-        output Heat_O @labels(TDMA/TMDAtoHEAT);
-        output Container_O @labels(TDMA/TDMAtoCONTAINER);
+    gates:        
+        input From_Deliverer @labels(TDMA/D2T);
+        
+        output To_Deliverer @labels(TDMA/T2D);
+        output To_Heat @labels(TDMA/T2H);
+        output To_Container @labels(TDMA/T2C);
 }
 

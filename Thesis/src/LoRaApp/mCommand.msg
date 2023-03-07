@@ -29,6 +29,9 @@ enum mCommandType
     SEND_REFUSE_ACK = 4;
     UPDATE_NEIGHBOR_INFO = 5;
     SEND_UPDATE_HEAT = 6;
+    STOP_UPDATE_HEAT = 7;
+    START_GENERATE_PACKET = 8;
+    SEND_DATA_PACKET = 9;
 }
 
 message mCommand extends cMessage {

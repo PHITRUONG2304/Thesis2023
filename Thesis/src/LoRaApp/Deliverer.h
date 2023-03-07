@@ -35,7 +35,8 @@ class Deliverer : public cSimpleModule, public ILifecycle
         void handleMessage(cMessage *msg) override;
         virtual bool handleOperationStage(LifecycleOperation *operation, IDoneCallback *doneCallback) override;
 
-        void handleMessageFromUpperLayer(cMessage *msg);
+        void handleMessageFromLowerLayer(cMessage *msg);
+        void handleCommandFromUpperLayer(cMessage *msg);
 
         //LoRa parameters control
         LoRaRadio *loRaRadio;
@@ -61,7 +62,7 @@ class Deliverer : public cSimpleModule, public ILifecycle
 //      ****************************************************** EDIT *****************************************************     //
         void sendHEAT_packet(MacAddress destination, double PRR, simtime_t timeToGW);
 
-        void sendDATA_packet(MacAddress destination, LoRaAppPacket packet);
+        void sendDATA_packet(Packet *packet);
         void sendACK_packet(MacAddress destination, bool success);
 
         void sendFreeslot_packet(int slot, double myPRR, simtime_t timeToGW);

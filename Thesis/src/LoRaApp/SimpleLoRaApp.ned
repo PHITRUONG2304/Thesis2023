@@ -32,29 +32,35 @@ module SimpleLoRaApp like IApp
 
     submodules:
         TDMA: TDMA {
-            @display("p=127,90;i=block/cogwheel");
+            @display("p=141,35;i=block/cogwheel");
         }
 
         Deliverer: Deliverer {
-            @display("p=127,190;i=block/transport");
+            @display("p=141,188;i=block/transport");
         }
 
         ReviseHEAT: ReviseHEAT {
-            @display("p=32,90;i=block/app");
+            @display("p=40,95;i=block/app");
         }
 
         Container: Container {
-            @display("p=227,90;i=block/buffer");
+            @display("p=245,95;i=block/buffer");
         }
 
     connections allowunconnected:
-        socketOut <-- Deliverer.socketOut;
-        socketIn --> TDMA.socketIn;
-        
-        TDMA.Container_O --> Container.TDMA_I;
-        TDMA.Heat_O --> ReviseHEAT.TDMA_I;
 
-        Deliverer.TDMA_I <-- TDMA.Deliverer_O;
-        Deliverer.Heat_I <-- ReviseHEAT.Deliverer_O;
-		Deliverer.Container_I <-- Container.Deliverer_O;
+        Deliverer.lowerLayerOut --> socketOut;
+        Deliverer.lowerLayerIn <-- socketIn;
+
+        Deliverer.To_Container --> Container.From_Deliverer;
+        Deliverer.To_Heat --> ReviseHEAT.From_Deliverer;
+        Deliverer.To_TDMA --> TDMA.From_Deliverer;
+
+        Deliverer.From_Container <-- Container.To_Deliverer;
+        Deliverer.From_Heat <-- ReviseHEAT.To_Deliverer;
+        Deliverer.From_TDMA <-- TDMA.To_Deliverer;
+
+        TDMA.To_Container --> Container.From_TDMA;
+        TDMA.To_Heat --> ReviseHEAT.From_TDMA;
+
 }

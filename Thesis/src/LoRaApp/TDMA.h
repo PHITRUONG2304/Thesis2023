@@ -27,7 +27,6 @@ enum TDMA_STATE {
 
 struct Communication_Slot {
     MacAddress addr;
-    int slot = 0;
     simtime_t timestamp = 0;
     bool isBusy;
     bool waitUpdateFrom;
@@ -63,7 +62,7 @@ class TDMA : public cSimpleModule, public ILifecycle
         cMessage *grantFreeSlot;
         cMessage *timeOutGrant;
         RandomRequestMessage *randomRequest;
-        cMessage *randomUpdate;
+        cMessage *timeoutForUpdate;
         int request_again_times;
 
     protected:
@@ -73,7 +72,6 @@ class TDMA : public cSimpleModule, public ILifecycle
 
         virtual void handleMessage(cMessage *msg) override;
         virtual void handleSelfMessage(cMessage *msg);
-        virtual void handlePacketFromLowerLayer(Packet *packet);
         virtual bool handleOperationStage(LifecycleOperation *operation, IDoneCallback *doneCallback) override;
         void printTable();
         void removeNeighbor(MacAddress addr);
@@ -86,7 +84,8 @@ class TDMA : public cSimpleModule, public ILifecycle
         bool hasEstablishedCommunicationWith(MacAddress src);
         int getCurrentSlot(){return this->current_slot;}
         simtime_t getCurrentTimeSlotStartTime(){return this->timeslot_start_time;}
-        bool needUpdateMore(MacAddress addr);
+        bool needUpdateBack(MacAddress addr);
+        void updateNeighborInfo(Packet *pkt);
 
 };
 

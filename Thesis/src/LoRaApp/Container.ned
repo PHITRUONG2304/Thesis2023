@@ -20,7 +20,12 @@ simple Container
     parameters:
         int max_neighbors = default(10);
 		int queue_length = default(50);
+		double generate_packet_interval @unit(s) = default(60s);
+		double start_generate @unit(s) = default(5000s);
+		
 	gates:
-        input TDMA_I @labels(Container/lowerIn);
-        output Deliverer_O @labels(Container/TDMAtoDELIVERER);
+        input From_Deliverer @labels(Container/D2C);
+        input From_TDMA @labels(Container/T2C);
+        output To_Deliverer@labels(Container/C2D);
+        
 }

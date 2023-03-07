@@ -42,19 +42,21 @@ namespace flora
     private:
         uint32_t length;
         uint32_t maxlength;
-        queue<LoRaAppPacket> receivedPackets;
+        queue<Packet* > receivedPackets;
         vector<uint32_t> receivedSeqNumber;
 
         bool isPacketAlreadyExist(uint32_t seqNum);
-        bool isPacketAlreadyExist(LoRaAppPacket packet);
+        bool isPacketAlreadyExist(Packet *packet);
 
     public:
         bool isFull() { return this->maxlength == this->length; }
         bool isEmpty() { return this->length == 0; }
         DataQueue(uint32_t maxlength = 50);
-        ADD_PACKET_RESULT addPacket(LoRaAppPacket packet);
-        LoRaAppPacket peekPacket();
+        ADD_PACKET_RESULT addPacket(Packet* packet);
+        Packet *peekPacket();
+        void popPacket();
         void removePacket(uint32_t index = 0);
+        bool isJustSentPacket(uint32_t seqNum);
     };
 
     enum State
@@ -62,7 +64,8 @@ namespace flora
         NORMAL,
         DISPATCHING,
         ACK_FAIL,
-        ACK_SUCCESS
+        ACK_SUCCESS,
+        FORWARDING
     };
 
     struct Container_El
@@ -79,6 +82,9 @@ namespace flora
         Container_El *neighborData;
         State fsmState = NORMAL;
         ReviseHEAT *myHEATer;
+        TDMA *myTDMA;
+
+        cMessage *generatePacket;
 
     protected:
         void initialize(int stage) override;
@@ -88,13 +94,16 @@ namespace flora
         void handleMessage(cMessage *msg) override;
         bool isAlreadyExistNeighbor(MacAddress addr);
         void addNewNeighborContainer(MacAddress addr);
+        bool isJustSentPacket(MacAddress src, uint32_t seqNum);
 
     public:
-        void handleWithFsm(LoRaAppPacket *packet = NULL);
-        void handleWithFsmWhenReceivePacket(LoRaAppPacket *packet);
-        bool disPatchPacket(LoRaAppPacket packet);
+        void handleWithFsm(cMessage *msg);
+        State getNextState(cMessage *msg);
+        void executeAction();
+        bool disPatchPacket(Packet *packet);
         void generatingPacket();
         bool canAddMore(MacAddress addr);
+        bool forwardDataPacket(MacAddress addr);
         void printTable();
     };
 

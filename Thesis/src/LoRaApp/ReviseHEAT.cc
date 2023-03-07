@@ -46,6 +46,7 @@ namespace flora
             this->myTDMA = check_and_cast<TDMA *>(getParentModule()->getSubmodule("TDMA"));
             this->myDeliverer = check_and_cast<Deliverer *>(getParentModule()->getSubmodule("Deliverer"));
             this->myContainer = check_and_cast<Container *>(getParentModule()->getSubmodule("Container"));
+
         }
     }
 
@@ -67,23 +68,46 @@ namespace flora
     {
         if (msg->isSelfMessage())
         {
-            EV <<"Receive self message" << endl;
+            if(msg == updateAgain)
+            {
+                if(this->sendAgainTimes < par("send_again_times").intValue())
+                {
+                    auto command = check_and_cast<mCommand *>(msg);
+
+                    mCommand *myCommand = new mCommand("Send update HEAT value");
+                    myCommand->setKind(SEND_UPDATE_HEAT);
+                    myCommand->setPRR(this->current_HEAT.PRR);
+                    myCommand->setTimeToGW(this->getCurrentTimeToGW());
+                    myCommand->setSlot(command->getSlot());
+                    myCommand->setAddress(command->getAddress());
+                    send(myCommand, "To_Deliverer");
+
+                    scheduleAt(simTime() + par("send_again_interval"), updateAgain);
+                    this->sendAgainTimes += 1;
+                }
+                else
+                {
+                    delete msg;
+                    updateAgain = nullptr;
+                }
+            }
         }
         else
         {
-            if (msg->getArrivalGate() == gate("TDMA_I"))
+            if (msg->getArrivalGate() == gate("From_Deliverer"))
             {
                 if(msg->isPacket())
                 {
                     auto packet = check_and_cast<Packet *>(msg);
                     auto addr = packet->getTag<MacAddressInd>();
                     const auto &pkt = packet->peekAtFront<LoRaAppPacket>();
+
                     EV << "Source address= " << addr->getSrcAddress() << ", PRR= " << pkt->getPRR() << ", timeToGW= " << pkt->getTimeToGW() << endl;
 
                     updateNeighborTable(addr->getSrcAddress(), pkt->getPRR(), pkt->getTimeToGW(), simTime());
                     calculateHEATField();
 
-                    if(this->myTDMA->needUpdateMore(addr->getSrcAddress()))
+                    if(this->myTDMA->needUpdateBack(addr->getSrcAddress()))
                     {
                         mCommand *myCommand = new mCommand("Send update HEAT value");
                         myCommand->setKind(SEND_UPDATE_HEAT);
@@ -92,62 +116,77 @@ namespace flora
                         myCommand->setSlot(this->myTDMA->getCurrentSlot());
                         myCommand->setAddress(addr->getSrcAddress());
 
-                        send(myCommand, "Deliverer_O");
+                        send(myCommand, "To_Deliverer");
                     }
-                }
-                else
-                {
-                    auto command = check_and_cast<mCommand *>(msg);
-                    if (command->getKind() == SEND_INVITATION)
+                    else
                     {
-                        if (canUpdate())
+                        if(updateAgain != nullptr)
                         {
-                            EV << "Receive command: send join invitation to neighbor nodes\n";
-                            mCommand *myCommand = new mCommand("Broadcast join invitation");
-                            myCommand->setKind(SEND_INVITATION);
-                            myCommand->setPRR(this->current_HEAT.PRR);
-                            myCommand->setTimeToGW(this->getCurrentTimeToGW());
-
-                            send(myCommand, "Deliverer_O");
+                            cancelAndDelete(updateAgain);
+                            updateAgain = nullptr;
                         }
-                    }
-                    else if(command->getKind() == SEND_ACCEPT_ACK)
-                    {
-                        EV << "Receive command: Update neighbor's HEAT information\n";
-                        this->updateNeighborTable(command->getAddress(), command->getPRR(), command->getTimeToGW(), simTime());
-                        this->calculateHEATField();
-
-                        mCommand *myCommand = new mCommand("Send accept message to communicate in this time-slot");
-                        myCommand->setKind(SEND_ACCEPT_ACK);
-                        myCommand->setPRR(this->current_HEAT.PRR);
-                        myCommand->setTimeToGW(this->getCurrentTimeToGW());
-                        myCommand->setSlot(command->getSlot());
-                        myCommand->setAddress(command->getAddress());
-
-                        send(myCommand, "Deliverer_O");
-                    }
-                    else if(command->getKind() == UPDATE_NEIGHBOR_INFO)
-                    {
-                        EV << "Receive command: Update neighbor's HEAT information\n";
-                        this->updateNeighborTable(command->getAddress(), command->getPRR(), command->getTimeToGW(), simTime());
-                        this->calculateHEATField();
-                    }
-                    else if(command->getKind() == SEND_UPDATE_HEAT)
-                    {
-                        mCommand *myCommand = new mCommand("Send update HEAT value");
-                        myCommand->setKind(SEND_UPDATE_HEAT);
-                        myCommand->setPRR(this->current_HEAT.PRR);
-                        myCommand->setTimeToGW(this->getCurrentTimeToGW());
-                        myCommand->setSlot(command->getSlot());
-                        myCommand->setAddress(command->getAddress());
-
-                        send(myCommand, "Deliverer_O");
                     }
                 }
             }
+            else if (msg->getArrivalGate() == gate("From_TDMA"))
+            {
+                auto command = check_and_cast<mCommand *>(msg);
+                if (command->getKind() == SEND_INVITATION)
+                {
+                    if (canUpdate())
+                    {
+                        EV << "Receive command: send join invitation to neighbor nodes\n";
+                        mCommand *myCommand = new mCommand("Broadcast join invitation");
+                        myCommand->setKind(SEND_INVITATION);
+                        myCommand->setPRR(this->current_HEAT.PRR);
+                        myCommand->setTimeToGW(this->getCurrentTimeToGW());
+
+                        send(myCommand, "To_Deliverer");
+                    }
+                }
+                else if(command->getKind() == SEND_ACCEPT_ACK)
+                {
+                    EV << "Receive command: Update neighbor's HEAT information\n";
+                    this->updateNeighborTable(command->getAddress(), command->getPRR(), command->getTimeToGW(), simTime());
+                    this->calculateHEATField();
+
+                    mCommand *myCommand = new mCommand("Send accept message to communicate in this time-slot");
+                    myCommand->setKind(SEND_ACCEPT_ACK);
+                    myCommand->setPRR(this->current_HEAT.PRR);
+                    myCommand->setTimeToGW(this->getCurrentTimeToGW());
+                    myCommand->setSlot(command->getSlot());
+                    myCommand->setAddress(command->getAddress());
+                    send(myCommand, "To_Deliverer");
+
+                }
+                else if(command->getKind() == UPDATE_NEIGHBOR_INFO)
+                {
+                    EV << "Receive command: Update neighbor's HEAT information\n";
+                    this->updateNeighborTable(command->getAddress(), command->getPRR(), command->getTimeToGW(), simTime());
+                    this->calculateHEATField();
+                }
+                else if(command->getKind() == SEND_UPDATE_HEAT)
+                {
+                    mCommand *myCommand = new mCommand("Send update HEAT value");
+                    myCommand->setKind(SEND_UPDATE_HEAT);
+                    myCommand->setPRR(this->current_HEAT.PRR);
+                    myCommand->setTimeToGW(this->getCurrentTimeToGW());
+                    myCommand->setSlot(command->getSlot());
+                    myCommand->setAddress(command->getAddress());
+                    send(myCommand, "To_Deliverer");
+
+                    updateAgain = new mCommand("Schedule an update in case your neighbor doesn't get it");
+                    updateAgain->setAddress(command->getAddress());
+                    updateAgain->setSlot(command->getSlot());
+
+                    scheduleAt(simTime() + par("send_again_interval"), updateAgain);
+                    this->sendAgainTimes = 0;
+                }
+            }
+            delete msg;
         }
-        delete msg;
     }
+
 
     int ReviseHEAT::isAlreadyExistNeighbor(MacAddress addr)
     {

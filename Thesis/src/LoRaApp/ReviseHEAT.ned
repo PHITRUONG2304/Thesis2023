@@ -22,8 +22,11 @@ simple ReviseHEAT
 	    double initialPRR = default(0.0);
 	    double timeToGW @unit(s) = default(-1s);
 	    int maxNeighbour = default(10);
+	    double send_again_interval @unit(s) = default(200ms);
+	    int send_again_times = default(3);
 	    
 	gates:
-        input TDMA_I @labels(ReviseHEAT/lowerIn);
-        output Deliverer_O @labels(ReviseHEAT/TDMAtoDELIVERER);
+        input From_Deliverer @labels(ReviseHEAT/D2H);
+        input From_TDMA @labels(ReviseHEAT/T2H);
+        output To_Deliverer @labels(ReviseHEAT/H2D);
 }

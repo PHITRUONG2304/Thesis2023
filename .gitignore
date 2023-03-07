@@ -30,3 +30,5 @@ src/**/*_m.cc
 src/Makefile
 
 /out
+
+/format.cpp

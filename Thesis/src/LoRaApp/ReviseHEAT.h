@@ -53,11 +53,13 @@ namespace flora
         int currentNeighbors;
         Neighbor_Info *neighbor_Table;
         int currentPath = -1;
-        bool updatedInCurrentSlot = false;
+        int sendAgainTimes = 0;
 
         TDMA *myTDMA;
         Deliverer *myDeliverer;
         Container *myContainer;
+
+        mCommand *updateAgain;
 
 
     protected:

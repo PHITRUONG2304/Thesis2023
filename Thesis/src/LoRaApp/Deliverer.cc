@@ -75,17 +75,63 @@ namespace flora
 
     void Deliverer::handleMessage(cMessage *msg)
     {
-        if (msg->isSelfMessage()) {
+        if (msg->isSelfMessage())
+        {
             EV << "Hello windows!" << endl;
         }
         else
         {
-            handleMessageFromUpperLayer(msg);
-            delete msg;
+            if(msg->getArrivalGate() == gate("lowerLayerIn"))
+                handleMessageFromLowerLayer(msg);
+            else if(msg->getArrivalGate() == gate("From_Container"))
+            {
+                if(msg->isPacket())
+                {
+                    auto packet = check_and_cast<Packet *>(msg);
+                    sendDATA_packet(packet);
+                }
+                else
+                {
+
+                }
+            }
+            else
+                handleCommandFromUpperLayer(msg);
+
+        }
+
+        delete msg;
+    }
+
+    void Deliverer::handleMessageFromLowerLayer(cMessage *msg)
+    {
+        auto pkt = check_and_cast<Packet *>(msg);
+
+        switch(pkt->getKind())
+        {
+        case JOIN_INVITE:
+        case JOIN_REQUEST:
+        case JOIN_ACCEPT_REPLY:
+        case JOIN_REFUSE_REPLY:
+            send(msg->dup(), "To_TDMA");
+            break;
+
+        case HEAT_INFO:
+            send(msg->dup(), "To_Heat");
+            break;
+
+        case DATA_PACKET:
+        case FORWARD_PACKET:
+        case UNABLE_RECEIVE_MORE:
+        case RECEIVED_SUCCESS:
+            send(msg->dup(), "To_Container");
+            break;
+
+
         }
     }
 
-    void Deliverer::handleMessageFromUpperLayer(cMessage *msg)
+    void Deliverer::handleCommandFromUpperLayer(cMessage *msg)
     {
         EV <<"This is handleMessageFromUpperLayer function!\n";
         EV << "This is packet from TDMA module\n" << endl;
@@ -148,28 +194,20 @@ namespace flora
         loraTag->setDestination(destination);
 
         pktHEAT_Info->insertAtBack(payload);
-        send(pktHEAT_Info, "socketOut");
+        send(pktHEAT_Info, "lowerLayerOut");
         emit(LoRa_AppPacketSent, getSF());
     }
 
-    void Deliverer::sendDATA_packet(MacAddress destination, LoRaAppPacket packet)
+    void Deliverer::sendDATA_packet(Packet *packet)
     {
-        auto pktData = new Packet("Sensor Data");
-        pktData->setKind(DATA_PACKET);
-
-        auto payload = makeShared<LoRaAppPacket>(packet);
-        payload->setMsgType(DATA_PACKET);
-
-        auto loraTag = pktData->addTagIfAbsent<LoRaTag>();
+        auto loraTag = packet->addTagIfAbsent<LoRaTag>();
         loraTag->setBandwidth(getBW());
         loraTag->setCenterFrequency(getCF());
         loraTag->setSpreadFactor(getSF());
         loraTag->setCodeRendundance(getCR());
         loraTag->setPower(mW(math::dBmW2mW(getTP())));
-        loraTag->setDestination(destination);
 
-        pktData->insertAtBack(payload);
-        send(pktData, "socketOut");
+        send(packet, "lowerLayerOut");
         emit(LoRa_AppPacketSent, getSF());
     }
 
@@ -202,7 +240,7 @@ namespace flora
 
         pktFreeSlot->insertAtBack(payload);
 
-        send(pktFreeSlot, "socketOut");
+        send(pktFreeSlot, "lowerLayerOut");
         emit(LoRa_AppPacketSent, getSF());
     }
 
@@ -226,7 +264,7 @@ namespace flora
         loraTag->setDestination(destination);
 
         pktJoinRequest->insertAtBack(payload);
-        send(pktJoinRequest, "socketOut");
+        send(pktJoinRequest, "lowerLayerOut");
         emit(LoRa_AppPacketSent, getSF());
     }
 
@@ -252,7 +290,7 @@ namespace flora
         loraTag->setDestination(destination);
 
         pktJoinReply->insertAtBack(payload);
-        send(pktJoinReply, "socketOut");
+        send(pktJoinReply, "lowerLayerOut");
         emit(LoRa_AppPacketSent, getSF());
     }
 

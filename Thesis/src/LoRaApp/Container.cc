@@ -22,27 +22,30 @@ namespace flora
         this->length = 0;
     }
 
-    bool DataQueue::isPacketAlreadyExist(uint32_t seqNum)
+    bool DataQueue::isPacketAlreadyExist(Packet *packet)
     {
+        const auto &pkt = packet->peekAtFront<LoRaAppPacket>();
         for (auto it = this->receivedSeqNumber.begin(); it != this->receivedSeqNumber.end(); it++)
         {
-            if (*it == seqNum)
-                return true;
-        }
-        return false;
-    }
-    bool DataQueue::isPacketAlreadyExist(LoRaAppPacket packet)
-    {
-        for (auto it = this->receivedSeqNumber.begin(); it != this->receivedSeqNumber.end(); it++)
-        {
-            if (*it == packet.getSeqNum())
+            if (*it == pkt->getSeqNum())
                 return true;
         }
         return false;
     }
 
-    ADD_PACKET_RESULT DataQueue::addPacket(LoRaAppPacket packet)
+    bool DataQueue::isJustSentPacket(uint32_t seqNum)
     {
+        auto packet = peekPacket();
+        const auto &pkt = packet->peekAtFront<LoRaAppPacket>();
+        if(pkt->getSeqNum() == seqNum)
+            return true;
+
+        return false;
+    }
+
+    ADD_PACKET_RESULT DataQueue::addPacket(Packet *packet)
+    {
+        const auto &pkt = packet->peekAtFront<LoRaAppPacket>();
         if (this->isPacketAlreadyExist(packet))
             return EXISTED;
         else if (this->isFull())
@@ -50,16 +53,13 @@ namespace flora
 
         this->receivedPackets.push(packet);
         this->length++;
-        this->receivedSeqNumber.push_back(packet.getSeqNum());
+        this->receivedSeqNumber.push_back(pkt->getSeqNum());
 
         return SUCCESS;
     }
 
-    LoRaAppPacket DataQueue::peekPacket()
+    Packet* DataQueue::peekPacket()
     {
-        if (this->isEmpty())
-            return LoRaAppPacket();
-
         return this->receivedPackets.front();
     }
 
@@ -67,16 +67,8 @@ namespace flora
     {
         if (isEmpty())
             return;
-
-        for (auto it = this->receivedSeqNumber.begin(); it != this->receivedSeqNumber.end(); it++)
-        {
-            if (index == 0)
-            {
-                this->receivedSeqNumber.erase(it);
-                break;
-            }
-            index--;
-        }
+        this->receivedPackets.pop();
+        this->receivedSeqNumber.erase(receivedSeqNumber.begin());
     }
 
     void Container::initialize(int stage)
@@ -99,6 +91,10 @@ namespace flora
                 this->neighborData[i].Dqueue = DataQueue(par("queue_length").intValue());
             }
             this->myHEATer = check_and_cast<ReviseHEAT *>(getParentModule()->getSubmodule("ReviseHEAT"));
+            this->myTDMA = check_and_cast<TDMA *>(getParentModule()->getSubmodule("TDMA"));
+
+            generatePacket = new cMessage("Generate packet");
+            scheduleAt(simTime() + par("start_generate"), generatePacket);
         }
     }
 
@@ -119,18 +115,47 @@ namespace flora
     void Container::handleMessage(cMessage *msg)
     {
         EV <<"I am received a command from lower layer\n";
-        if(msg->isPacket())
+        if(msg->isSelfMessage())
         {
-
+            if(msg == generatePacket)
+            {
+                this->generatingPacket();
+                scheduleAt(simTime() + par("generate_packet_interval"), generatePacket->dup());
+            }
         }
         else
         {
-            if(msg->getKind() == UPDATE_NEIGHBOR_INFO)
+            if(msg->getArrivalGate() == gate("From_TDMA"))
             {
-                auto command = check_and_cast<mCommand *>(msg);
-                this->addNewNeighborContainer(command->getAddress());
+                if(msg->getKind() == UPDATE_NEIGHBOR_INFO)
+                {
+                    auto command = check_and_cast<mCommand *>(msg);
+                    this->addNewNeighborContainer(command->getAddress());
+                }
+                else if(msg->getKind() == START_GENERATE_PACKET)
+                {
+                    if(!generatePacket->isScheduled())
+                    {
+                        generatePacket = new cMessage("Generate packet");
+                        scheduleAt(simTime(), generatePacket);
+                    }
+                }
+                else if(msg->getKind() == SEND_DATA_PACKET)
+                {
+                    auto command = check_and_cast<mCommand *>(msg);
+                    int result = this->forwardDataPacket(command->getAddress());
+                    if(result)
+                        this->fsmState = FORWARDING;
+                    else
+                        this->fsmState = NORMAL;
+                }
+            }
+            else if (msg->getArrivalGate() == gate("From_Deliverer"))
+            {
+                handleWithFsm(msg->dup());
             }
         }
+        delete msg;
     }
 
     bool Container::isAlreadyExistNeighbor(MacAddress addr)
@@ -153,19 +178,15 @@ namespace flora
             EV <<"Neighbor already exists" << endl;
     }
 
-    void Container::handleWithFsm(LoRaAppPacket *packet)
+    void Container::handleWithFsm(cMessage *msg)
     {
         switch (this->fsmState)
         {
         case NORMAL:
-            if (packet != NULL)
-            {
-                this->fsmState = DISPATCHING;
-            }
             break;
 
         case DISPATCHING:
-            if (this->disPatchPacket(*(packet)))
+            if (this->disPatchPacket(check_and_cast<Packet *>(msg)))
                 this->fsmState = ACK_SUCCESS;
             else
                 this->fsmState = ACK_FAIL;
@@ -184,10 +205,16 @@ namespace flora
             // send function ack about dispatch success
             cout << "ACK Success" << endl;
             break;
+
+        case FORWARDING:
+
+            auto packet = check_and_cast<Packet* >(msg);
+            auto addr = packet->getTag<MacAddressInd>();
+
         }
     }
 
-    bool Container::disPatchPacket(LoRaAppPacket packet)
+    bool Container::disPatchPacket(Packet *packet)
     {
         MacAddress destAddr = MacAddress::UNSPECIFIED_ADDRESS;
         destAddr = myHEATer->getCurrentPathToGW();
@@ -199,8 +226,8 @@ namespace flora
         {
             if (this->neighborData[i].addr == destAddr)
             {
-                ADD_PACKET_RESULT state = this->neighborData[i].Dqueue.addPacket(packet);
-                if (state == FAIL)
+                ADD_PACKET_RESULT result = this->neighborData[i].Dqueue.addPacket(packet);
+                if (result == FAIL)
                     return false;
                 else
                     return true;
@@ -223,16 +250,51 @@ namespace flora
 
     void Container::generatingPacket()
     {
-        LoRaAppPacket newPacket;
+        auto pktData = new Packet("Sensor Data");
+        pktData->setKind(DATA_PACKET);
 
-        newPacket.setHopNum(0);
-        newPacket.setMsgType(DATA_PACKET);
-        newPacket.setPayload(rand());
+        auto payload = makeShared<LoRaAppPacket>();
+        payload->setMsgType(DATA_PACKET);
+
+        payload->setHopNum(0);
+        payload->setMsgType(DATA_PACKET);
+        payload->setPayload(rand());
 
         // set timestamp when generating packet
-        newPacket.setGeneratedTime(simTime());
+        payload->setGeneratedTime(simTime());
+        pktData->insertAtBack(payload);
 
-        this->disPatchPacket(newPacket);
+        this->disPatchPacket(pktData);
+    }
+
+
+    bool Container::forwardDataPacket(MacAddress addr)
+    {
+        for(int i=0; i<this->currentNeighbors; i++)
+        {
+            if(this->neighborData[i].addr == addr)
+                if(!this->neighborData[i].Dqueue.isEmpty())
+                {
+                    Packet *dataPkt = this->neighborData[i].Dqueue.peekPacket();
+                    auto loraTag = dataPkt->addTagIfAbsent<LoRaTag>();
+                    loraTag->setDestination(addr);
+
+                    send(dataPkt, "To_Deliverer");
+
+                    return true;
+                }
+        }
+        return false;
+    }
+
+    bool Container::isJustSentPacket(MacAddress src, uint32_t seqNum)
+    {
+        for(int i=0; i < this->currentNeighbors; i++)
+        {
+            if(this->neighborData[i].addr == src)
+                return this->neighborData[i].Dqueue.isJustSentPacket(seqNum);
+        }
+        throw "Not find neighbor address";
     }
 
     void Container::printTable()

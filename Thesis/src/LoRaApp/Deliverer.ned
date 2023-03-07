@@ -30,8 +30,15 @@ simple Deliverer
         
 	    int maxNeighbours = default(10);
     gates:
-        input Container_I @labels(Deliverer/Container2Deliverer);
-        input TDMA_I @labels(Deliverer/TDMA2Deliverer);
-        input Heat_I @labels(Deliverer/HEAT2Deliverer);
-        output socketOut @labels(Deliverer/down);
+        input From_Container @labels(Deliverer/C2D);
+        output To_Container @labels(Deliverer/D2C);
+        
+        input From_TDMA @labels(Deliverer/T2D);
+        output To_TDMA @labels(Deliverer/D2T);
+        
+        input From_Heat @labels(Deliverer/H2D);
+        output To_Heat @labels(Deliverer/D2H);
+        
+        input lowerLayerIn @labels(TDMA/lowerIn);
+        output lowerLayerOut @labels(TDMA/lowerOut);
 }
