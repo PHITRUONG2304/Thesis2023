@@ -26,7 +26,7 @@ simple ReviseHEAT
 	    int send_again_times = default(3);
 	    
 	gates:
-        input From_Deliverer @labels(ReviseHEAT/D2H);
+        input From_Receiver @labels(ReviseHEAT/R2R);
         input From_TDMA @labels(ReviseHEAT/T2H);
-        output To_Deliverer @labels(ReviseHEAT/H2D);
+        output To_Transmitter @labels(ReviseHEAT/H2D);
 }

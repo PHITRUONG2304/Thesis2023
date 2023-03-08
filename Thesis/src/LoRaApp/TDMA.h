@@ -12,6 +12,7 @@
 #include "LoRa/LoRaMacControlInfo_m.h"
 #include "LoRa/LoRaRadio.h"
 #include "mCommand_m.h"
+#include "NeighborTable.h"
 #include <queue>
 
 using namespace omnetpp;
@@ -23,13 +24,6 @@ enum TDMA_STATE {
     IDLE,
     REQUESTING,
     WAITING_FOR_REQUEST
-};
-
-struct Communication_Slot {
-    MacAddress addr;
-    simtime_t timestamp = 0;
-    bool isBusy;
-    bool waitUpdateFrom;
 };
 
 class RandomRequestMessage : public cMessage
@@ -52,10 +46,8 @@ class TDMA : public cSimpleModule, public ILifecycle
     private:
         int current_slot;
         simtime_t timeslot_start_time;
-        int max_communication_neighbors;
-        int currentNeighbors;
         simtime_t timeslotSize;
-        Communication_Slot* connectedNeighbors;
+        NeighborTable* neighborTable;
         TDMA_STATE state;
 
         cMessage *changeSlot;
@@ -73,18 +65,17 @@ class TDMA : public cSimpleModule, public ILifecycle
         virtual void handleMessage(cMessage *msg) override;
         virtual void handleSelfMessage(cMessage *msg);
         virtual bool handleOperationStage(LifecycleOperation *operation, IDoneCallback *doneCallback) override;
-        void printTable();
-        void removeNeighbor(MacAddress addr);
+        void removeNeighbor(MacAddress addr) { this->neighborTable->removeNeighbor(addr); }
     public:
 
         void handleWithFsm(Packet *pkt);
         bool isAvailableSlot(int slot, MacAddress src);
-        void updateCommunicationSlot(MacAddress addr, int slotNumber, simtime_t timestamp, bool waitUpdateFrom);
+        void updateCommunicationSlot(MacAddress addr, int slotNumber, bool waitUpdateFrom) { this->neighborTable->addNewCommunicationSlot(addr, slotNumber, waitUpdateFrom); }
         simtime_t getShortestWaitingTime(MacAddress dest);
-        bool hasEstablishedCommunicationWith(MacAddress src);
+        bool hasEstablishedCommunicationWith(MacAddress src) { return this->neighborTable->isAlreadyExistNeighbor(src); }
         int getCurrentSlot(){return this->current_slot;}
         simtime_t getCurrentTimeSlotStartTime(){return this->timeslot_start_time;}
-        bool needUpdateBack(MacAddress addr);
+        bool needUpdateBack() { return this->neighborTable->waitUpdateInThisSlot(current_slot); }
         void updateNeighborInfo(Packet *pkt);
 
 };

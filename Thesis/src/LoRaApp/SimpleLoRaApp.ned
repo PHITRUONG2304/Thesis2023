@@ -17,9 +17,11 @@ package flora.LoRaApp;
 
 import inet.applications.contract.IApp;
 import flora.LoRaApp.TDMA;
-import flora.LoRaApp.Deliverer;
 import flora.LoRaApp.ReviseHEAT;
 import flora.LoRaApp.Container;
+import flora.LoRaApp.Receiver;
+import flora.LoRaApp.Transmitter;
+import flora.LoRaApp.NeighborTable;
 
 //
 // TODO auto-generated module
@@ -31,36 +33,44 @@ module SimpleLoRaApp like IApp
         output socketOut @labels(LoRaAppPacket/down);
 
     submodules:
-        TDMA: TDMA {
-            @display("p=141,35;i=block/cogwheel");
+        Receiver: Receiver {
+            @display("p=142,66;i=block/transport");
         }
 
-        Deliverer: Deliverer {
-            @display("p=141,188;i=block/transport");
+        TDMA: TDMA {
+            @display("p=142,158;i=block/cogwheel");
         }
 
         ReviseHEAT: ReviseHEAT {
-            @display("p=40,95;i=block/app");
+            @display("p=43,158;i=block/app");
         }
 
         Container: Container {
-            @display("p=245,95;i=block/buffer");
+            @display("p=248,158;i=block/buffer");
+        }
+
+        Transmitter: Transmitter {
+            @display("p=142,262;i=block/transport");
+        }
+
+        NeighborTable: NeighborTable {
+            @display("p=300,33;i=block/table2");
         }
 
     connections allowunconnected:
+        socketIn --> Receiver.lowerLayerIn;
 
-        Deliverer.lowerLayerOut --> socketOut;
-        Deliverer.lowerLayerIn <-- socketIn;
-
-        Deliverer.To_Container --> Container.From_Deliverer;
-        Deliverer.To_Heat --> ReviseHEAT.From_Deliverer;
-        Deliverer.To_TDMA --> TDMA.From_Deliverer;
-
-        Deliverer.From_Container <-- Container.To_Deliverer;
-        Deliverer.From_Heat <-- ReviseHEAT.To_Deliverer;
-        Deliverer.From_TDMA <-- TDMA.To_Deliverer;
+        Receiver.To_Heat --> ReviseHEAT.From_Receiver;
+        Receiver.To_TDMA --> TDMA.From_Receiver;
+        Receiver.To_Container --> Container.From_Receiver;
 
         TDMA.To_Container --> Container.From_TDMA;
         TDMA.To_Heat --> ReviseHEAT.From_TDMA;
+
+        ReviseHEAT.To_Transmitter --> Transmitter.From_Heat;
+        TDMA.To_Transmitter --> Transmitter.From_TDMA;
+        Container.To_Transmitter --> Transmitter.From_Container;
+
+        Transmitter.lowerLayerOut --> socketOut;
 
 }

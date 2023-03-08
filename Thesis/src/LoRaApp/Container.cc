@@ -16,61 +16,6 @@ namespace flora
 {
     Define_Module(Container);
 
-    DataQueue::DataQueue(uint32_t maxlength)
-    {
-        this->maxlength = maxlength;
-        this->length = 0;
-    }
-
-    bool DataQueue::isPacketAlreadyExist(Packet *packet)
-    {
-        const auto &pkt = packet->peekAtFront<LoRaAppPacket>();
-        for (auto it = this->receivedSeqNumber.begin(); it != this->receivedSeqNumber.end(); it++)
-        {
-            if (*it == pkt->getSeqNum())
-                return true;
-        }
-        return false;
-    }
-
-    bool DataQueue::isJustSentPacket(uint32_t seqNum)
-    {
-        auto packet = peekPacket();
-        const auto &pkt = packet->peekAtFront<LoRaAppPacket>();
-        if(pkt->getSeqNum() == seqNum)
-            return true;
-
-        return false;
-    }
-
-    ADD_PACKET_RESULT DataQueue::addPacket(Packet *packet)
-    {
-        const auto &pkt = packet->peekAtFront<LoRaAppPacket>();
-        if (this->isPacketAlreadyExist(packet))
-            return EXISTED;
-        else if (this->isFull())
-            return FAIL;
-
-        this->receivedPackets.push(packet);
-        this->length++;
-        this->receivedSeqNumber.push_back(pkt->getSeqNum());
-
-        return SUCCESS;
-    }
-
-    Packet* DataQueue::peekPacket()
-    {
-        return this->receivedPackets.front();
-    }
-
-    void DataQueue::removePacket(uint32_t index)
-    {
-        if (isEmpty())
-            return;
-        this->receivedPackets.pop();
-        this->receivedSeqNumber.erase(receivedSeqNumber.begin());
-    }
-
     void Container::initialize(int stage)
     {
         cSimpleModule::initialize(stage);
@@ -84,12 +29,7 @@ namespace flora
             this->max_communication_neighbors = par("max_neighbors").intValue();
             this->currentNeighbors = 0;
 
-            this->neighborData = new Container_El[this->max_communication_neighbors];
-            for (int i = 0; i < this->max_communication_neighbors; i++)
-            {
-                this->neighborData[i].addr = MacAddress::UNSPECIFIED_ADDRESS;
-                this->neighborData[i].Dqueue = DataQueue(par("queue_length").intValue());
-            }
+            this->neighborTable = check_and_cast<NeighborTable *>(getParentModule()->getSubmodule("NeighborTable"));
             this->myHEATer = check_and_cast<ReviseHEAT *>(getParentModule()->getSubmodule("ReviseHEAT"));
             this->myTDMA = check_and_cast<TDMA *>(getParentModule()->getSubmodule("TDMA"));
 
@@ -127,12 +67,7 @@ namespace flora
         {
             if(msg->getArrivalGate() == gate("From_TDMA"))
             {
-                if(msg->getKind() == UPDATE_NEIGHBOR_INFO)
-                {
-                    auto command = check_and_cast<mCommand *>(msg);
-                    this->addNewNeighborContainer(command->getAddress());
-                }
-                else if(msg->getKind() == START_GENERATE_PACKET)
+                if(msg->getKind() == START_GENERATE_PACKET)
                 {
                     if(!generatePacket->isScheduled())
                     {
@@ -158,26 +93,6 @@ namespace flora
         delete msg;
     }
 
-    bool Container::isAlreadyExistNeighbor(MacAddress addr)
-    {
-        for(int i=0; i < this->currentNeighbors; i++)
-        {
-            if(this->neighborData[i].addr == addr)
-                return true;
-        }
-        return false;
-    }
-    void Container::addNewNeighborContainer(MacAddress addr)
-    {
-        if(!isAlreadyExistNeighbor(addr))
-        {
-            this->neighborData[currentNeighbors].addr = addr;
-            currentNeighbors += 1;
-        }
-        else
-            EV <<"Neighbor already exists" << endl;
-    }
-
     void Container::handleWithFsm(cMessage *msg)
     {
         switch (this->fsmState)
@@ -186,7 +101,7 @@ namespace flora
             break;
 
         case DISPATCHING:
-            if (this->disPatchPacket(check_and_cast<Packet *>(msg)))
+            if(this->disPatchPacket(check_and_cast<Packet *>(msg)))
                 this->fsmState = ACK_SUCCESS;
             else
                 this->fsmState = ACK_FAIL;
@@ -207,102 +122,51 @@ namespace flora
             break;
 
         case FORWARDING:
+            break;
 
-            auto packet = check_and_cast<Packet* >(msg);
-            auto addr = packet->getTag<MacAddressInd>();
 
         }
+    }
+
+    bool Container::disPatchPacket(LoRaAppPacket *packet)
+    {
+        packet->setHopNum(packet->getHopNum() + 1);
+        packet->setPayload(packet->getPayload());
+        packet->setSeqNum(packet->getSeqNum());
+
+        MacAddress destAddr = MacAddress::UNSPECIFIED_ADDRESS;
+        destAddr = myHEATer->getCurrentPathToGW();
+
+        return this->neighborTable->addNewPacketTo(destAddr, packet);
     }
 
     bool Container::disPatchPacket(Packet *packet)
     {
-        MacAddress destAddr = MacAddress::UNSPECIFIED_ADDRESS;
-        destAddr = myHEATer->getCurrentPathToGW();
+        const auto &pkt = packet->peekAtFront<LoRaAppPacket>();
 
-        if (destAddr == MacAddress::UNSPECIFIED_ADDRESS)
-            return false;
+        auto newPkt = new LoRaAppPacket();
+        newPkt->setHopNum(pkt->getHopNum());
+        newPkt->setPayload(pkt->getPayload());
+        newPkt->setSeqNum(pkt->getSeqNum());
 
-        for (int i = 0; i < this->currentNeighbors; i++)
-        {
-            if (this->neighborData[i].addr == destAddr)
-            {
-                ADD_PACKET_RESULT result = this->neighborData[i].Dqueue.addPacket(packet);
-                if (result == FAIL)
-                    return false;
-                else
-                    return true;
-            }
-        }
-
-        return false;
-    }
-
-    bool Container::canAddMore(MacAddress addr)
-    {
-        bool result;
-        for (int i = 0; i < this->currentNeighbors; i++)
-        {
-            if (neighborData[i].addr == addr)
-                result = !(neighborData[i].Dqueue.isFull());
-        }
-        return result;
+        return this->disPatchPacket(newPkt);
     }
 
     void Container::generatingPacket()
     {
-        auto pktData = new Packet("Sensor Data");
-        pktData->setKind(DATA_PACKET);
+        auto newPkt = new LoRaAppPacket();
+        newPkt->setHopNum(0);
+        newPkt->setPayload(rand());
+        newPkt->setSeqNum(intrand(UINT32_MAX));
 
-        auto payload = makeShared<LoRaAppPacket>();
-        payload->setMsgType(DATA_PACKET);
-
-        payload->setHopNum(0);
-        payload->setMsgType(DATA_PACKET);
-        payload->setPayload(rand());
-
-        // set timestamp when generating packet
-        payload->setGeneratedTime(simTime());
-        pktData->insertAtBack(payload);
-
-        this->disPatchPacket(pktData);
+        this->disPatchPacket(newPkt);
     }
-
 
     bool Container::forwardDataPacket(MacAddress addr)
     {
-        for(int i=0; i<this->currentNeighbors; i++)
-        {
-            if(this->neighborData[i].addr == addr)
-                if(!this->neighborData[i].Dqueue.isEmpty())
-                {
-                    Packet *dataPkt = this->neighborData[i].Dqueue.peekPacket();
-                    auto loraTag = dataPkt->addTagIfAbsent<LoRaTag>();
-                    loraTag->setDestination(addr);
-
-                    send(dataPkt, "To_Deliverer");
-
-                    return true;
-                }
-        }
-        return false;
-    }
-
-    bool Container::isJustSentPacket(MacAddress src, uint32_t seqNum)
-    {
-        for(int i=0; i < this->currentNeighbors; i++)
-        {
-            if(this->neighborData[i].addr == src)
-                return this->neighborData[i].Dqueue.isJustSentPacket(seqNum);
-        }
-        throw "Not find neighbor address";
-    }
-
-    void Container::printTable()
-    {
-        EV_INFO << std::left << std::setw(2) << "|" << std::left << std::setw(17) << "Address" <<std::left << std::setw(2) << " " << endl;
-
-        for(int i = 0; i < this->currentNeighbors; i++){
-                EV_INFO << std::left << std::setw(2) << "|" << std::left << std::setw(17) << this->neighborData[i].addr <<std::left << std::setw(2) << " " << endl;
-        }
+        if(this->neighborTable->isEmpty(addr))
+            return false;
+//        TODO
+        return true;
     }
 }

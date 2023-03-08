@@ -25,22 +25,12 @@ namespace flora
         else if (stage == INITSTAGE_APPLICATION_LAYER)
         {
             EV << "Initializing stage " << stage << ", at TDMA\n";
-            this->max_communication_neighbors = par("max_neighbors").intValue();
             this->current_slot = -1;
-            this->currentNeighbors = 0;
             this->timeslotSize = par("timeslot_size");
-
-            this->connectedNeighbors = new Communication_Slot[this->max_communication_neighbors];
-            for (int i = 0; i < this->max_communication_neighbors; i++)
-            {
-                this->connectedNeighbors[i].addr = MacAddress::UNSPECIFIED_ADDRESS;
-                this->connectedNeighbors[i].timestamp = 0;
-                this->connectedNeighbors[i].isBusy = false;
-                this->connectedNeighbors[i].waitUpdateFrom = false;
-            }
+            this->timeslot_start_time = simTime();
 
             this->state = TDMA_STATE::IDLE;
-            this->timeslot_start_time = simTime();
+            this->neighborTable = check_and_cast<NeighborTable* >(getParentModule()->getSubmodule("NeighborTable"));
 
             changeSlot = new cMessage("Change slot");
             scheduleAt(simTime() + par("timeslot_size"), changeSlot);
@@ -50,8 +40,6 @@ namespace flora
     void TDMA::finish()
     {
         //    delete[] connectedNeighbors;
-        EV << "The current neighbors are: " << int(this->currentNeighbors) << endl;
-        printTable();
     }
 
     void TDMA::handleMessage(cMessage *msg)
@@ -70,27 +58,27 @@ namespace flora
         //    handle self message
         if (msg == changeSlot)
         {
-            this->current_slot = (this->current_slot + 1) % max_communication_neighbors;
+            this->current_slot = (this->current_slot + 1) % par("max_neighbors").intValue();
             this->timeslot_start_time = simTime();
             this->state = IDLE;
 
-            if (!this->connectedNeighbors[current_slot].isBusy)
+            if (!this->neighborTable->isBusySlot(current_slot))
             {
                 grantFreeSlot = new cMessage("Broadcast free slot message");
                 scheduleAt(uniform(simTime(), simTime() + par("timeslot_size") - par("timeout_grant")), grantFreeSlot);
             }
             else
             {
-                if (!this->connectedNeighbors[current_slot].waitUpdateFrom)
+                if (!this->neighborTable->waitUpdateInThisSlot(current_slot))
                 {
                     mCommand *command = new mCommand("Send update HEAT value command");
                     command->setKind(SEND_UPDATE_HEAT);
-                    command->setAddress(this->connectedNeighbors[current_slot].addr);
+                    command->setAddress(this->neighborTable->getCommunicationNeighbor(current_slot));
                     command->setSlot(current_slot);
                     send(command, "To_Heat");
 
-                    timeoutForUpdate = new cMessage("Schedule to send stop update HEAT value command");
-                    scheduleAt(simTime() + par("timeslot_size").doubleValue()/10, timeoutForUpdate);
+//                    timeoutForUpdate = new cMessage("Schedule to send stop update HEAT value command");
+//                    scheduleAt(simTime() + par("timeslot_size").doubleValue()/10, timeoutForUpdate);
                 }
             }
 
@@ -100,6 +88,7 @@ namespace flora
         {
             mCommand *myCommand = new mCommand("Broadcast join invitation");
             myCommand->setKind(SEND_INVITATION);
+            myCommand->setSlot(current_slot);
             send(myCommand, "To_Heat");
 
             this->state = WAITING_FOR_REQUEST;
@@ -125,7 +114,7 @@ namespace flora
             command->setKind(SEND_REQUEST);
             command->setAddress(request->getAddress());
             command->setSlot(request->getRequestSlot());
-            send(command, "To_Deliverer");
+            send(command, "To_Transmitter");
 
             if (++request_again_times < par("send_again_times").intValue())
                 scheduleAt(simTime() + par("send_again_interval"), randomRequest);
@@ -189,7 +178,7 @@ namespace flora
             if (pkt->getKind() == JOIN_ACCEPT_REPLY)
             {
                 EV << "Communication slot setup success\n";
-                updateCommunicationSlot(addr->getSrcAddress(), packet->getSlot(), simTime(), true);
+                updateCommunicationSlot(addr->getSrcAddress(), packet->getSlot(), true);
                 updateNeighborInfo(pkt->dup());
 
                 if (grantFreeSlot != nullptr)
@@ -224,7 +213,7 @@ namespace flora
                 EV << "Received join_request slot at TDMA module\n";
                 if (isAvailableSlot(packet->getSlot(), addr->getSrcAddress()))
                 {
-                    updateCommunicationSlot(addr->getSrcAddress(), packet->getSlot(), simTime(), false);
+                    updateCommunicationSlot(addr->getSrcAddress(), packet->getSlot(), false);
                     updateNeighborInfo(pkt->dup());
 
                     mCommand *ACK_command = new mCommand("Accept to communicate in this time-slot");
@@ -242,7 +231,7 @@ namespace flora
                     ACK_command->setSlot(this->current_slot);
 
                     // send command for Deliverer to send a refuse acknowledge that communicate in this time-slot
-                    send(ACK_command, "To_Deliverer");
+                    send(ACK_command, "To_Transmitter");
                 }
             }
             break;
@@ -257,86 +246,22 @@ namespace flora
         if (slot == -1)
             return false;
 
-        if (hasEstablishedCommunicationWith(src))
-            removeNeighbor(src);
+        if (this->neighborTable->isAlreadyExistNeighbor(src))
+            this->neighborTable->removeNeighbor(src);
 
-        return !(this->connectedNeighbors[slot].isBusy);
-    }
-
-    void TDMA::updateCommunicationSlot(MacAddress addr, int slotNumber, simtime_t timestamp, bool waitUpdateFrom)
-    {
-        if (!this->connectedNeighbors[slotNumber].isBusy)
-        {
-            this->connectedNeighbors[slotNumber].addr = addr;
-            this->connectedNeighbors[slotNumber].timestamp = timestamp;
-            this->connectedNeighbors[slotNumber].isBusy = true;
-            this->connectedNeighbors[slotNumber].waitUpdateFrom = waitUpdateFrom;
-            currentNeighbors++;
-        }
+        return !(this->neighborTable->isBusySlot(slot));
     }
 
     simtime_t TDMA::getShortestWaitingTime(MacAddress dest)
     {
-        int indexDest = -1;
+        int slotDest = this->neighborTable->getCommunicationSlot(dest);
 
-        for (int i = 0; i < this->max_communication_neighbors; i++)
-            if (this->connectedNeighbors[i].addr == dest)
-                indexDest = i;
-
-        if (indexDest == -1)
+        if (slotDest == -1)
             return -1;
-
-        if (indexDest >= this->current_slot)
-            return (indexDest - this->current_slot) * this->timeslotSize;
-
+        if (slotDest >= this->current_slot)
+            return (slotDest - this->current_slot) * this->timeslotSize;
         else
-            return (indexDest + this->max_communication_neighbors - this->current_slot) * this->timeslotSize;
-    }
-
-    bool TDMA::hasEstablishedCommunicationWith(MacAddress src)
-    {
-        for (int i = 0; i < this->max_communication_neighbors; i++)
-        {
-            if (this->connectedNeighbors[i].addr == src)
-                return true;
-        }
-        return false;
-    }
-
-    void TDMA::removeNeighbor(MacAddress addr)
-    {
-        for (int i = 0; i < this->max_communication_neighbors; i++)
-        {
-
-            if (this->connectedNeighbors[i].addr == addr)
-            {
-                this->connectedNeighbors[i].addr = MacAddress::UNSPECIFIED_ADDRESS;
-                this->connectedNeighbors[i].timestamp = 0;
-                this->connectedNeighbors[i].isBusy = false;
-                break;
-            }
-        }
-    }
-
-    void TDMA::printTable()
-    {
-        EV_INFO << std::left << std::setw(2) << "|" << std::left << std::setw(17) << "Address" << std::left << std::setw(2) << " " << std::left << std::setw(2) << "|" << std::left << std::setw(4) << "slot" << std::left << std::setw(2) << " " << std::left << std::setw(2) << "|" << std::left << std::setw(14) << "waitUpdateFrom" << std::left << std::setw(2) << " " << endl;
-
-        for (int i = 0; i < this->max_communication_neighbors; i++)
-        {
-            if (this->connectedNeighbors[i].isBusy)
-                EV_INFO << std::left << std::setw(2) << "|" << std::left << std::setw(17) << this->connectedNeighbors[i].addr << std::left << std::setw(2) << " " << std::left << std::setw(2) << "|" << std::left << std::setw(4) << i << std::left << std::setw(2) << " " << std::left << std::setw(2) << "|" << std::left << std::setw(14) << this->connectedNeighbors[i].waitUpdateFrom << std::left << std::setw(2) << " " << endl;
-        }
-    }
-
-    bool TDMA::needUpdateBack(MacAddress addr)
-    {
-        for (int i = 0; i < this->max_communication_neighbors; i++)
-        {
-            if (this->connectedNeighbors[i].addr == addr)
-                return connectedNeighbors[i].waitUpdateFrom;
-        }
-        return true;
+            return (slotDest + par("max_neighbors").intValue() - this->current_slot) * this->timeslotSize;
     }
 
     void TDMA::updateNeighborInfo(Packet *pkt)
@@ -350,12 +275,7 @@ namespace flora
         updateNeighbor_command->setPRR(packet->getPRR());
         updateNeighbor_command->setTimeToGW(packet->getTimeToGW());
 
-        // send command for Container to update new neighbor if not exist
-        send(updateNeighbor_command, "To_Container");
-        // send command for Deliverer to update new neighbor if not exist
-        send(updateNeighbor_command->dup(), "To_Deliverer");
-        // send command for HEAT to update HEAT information
-        send(updateNeighbor_command->dup(), "To_Heat");
+        send(updateNeighbor_command, "To_Heat");
     }
 
 }

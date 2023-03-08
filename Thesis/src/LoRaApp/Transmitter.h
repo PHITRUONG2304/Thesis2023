@@ -1,5 +1,12 @@
-#ifndef __DELIVERER_H__
-#define __DELIVERER_H__
+/*
+ * Transmitter.h
+ *
+ *  Created on: Mar 7, 2023
+ *      Author: PHITRUONG
+ */
+
+#ifndef LORAAPP_TRANSMITTER_H_
+#define LORAAPP_TRANSMITTER_H_
 
 #include <omnetpp.h>
 #include "inet/common/lifecycle/ILifecycle.h"
@@ -9,7 +16,6 @@
 
 #include "LoRaAppPacket_m.h"
 #include "mCommand_m.h"
-#include "TDMA.h"
 #include "LoRa/LoRaMacControlInfo_m.h"
 #include "LoRa/LoRaRadio.h"
 #include <queue>
@@ -21,12 +27,7 @@ using namespace inet;
 namespace flora
 {
 
-struct NeighborsQuality
-{
-    MacAddress addr;
-    bool lastState[100];
-};
-class Deliverer : public cSimpleModule, public ILifecycle
+class Transmitter : public cSimpleModule, public ILifecycle
 {
     protected:
         void initialize(int stage) override;
@@ -35,14 +36,10 @@ class Deliverer : public cSimpleModule, public ILifecycle
         void handleMessage(cMessage *msg) override;
         virtual bool handleOperationStage(LifecycleOperation *operation, IDoneCallback *doneCallback) override;
 
-        void handleMessageFromLowerLayer(cMessage *msg);
         void handleCommandFromUpperLayer(cMessage *msg);
 
         //LoRa parameters control
         LoRaRadio *loRaRadio;
-        TDMA *myTDMA;
-        int currentNeighbors;
-        NeighborsQuality *neighborsQuality;
 
         void setSF(int SF);
         int getSF();
@@ -56,7 +53,7 @@ class Deliverer : public cSimpleModule, public ILifecycle
         units::values::Hz getBW();
 
     public:
-        Deliverer() {}
+        Transmitter() {}
         simsignal_t LoRa_AppPacketSent;
 
 //      ****************************************************** EDIT *****************************************************     //
@@ -69,15 +66,10 @@ class Deliverer : public cSimpleModule, public ILifecycle
         void requestCommunicationSlot(MacAddress destination, int slot);
         void sendACKrequestSlot(MacAddress destination, int slot, bool accept, double myPRR = 0, simtime_t timeToGW = 0);
 
-        double getNeighborQuality(MacAddress addr);
-        bool isAlreadyExistNeighbor(MacAddress addr);
-        void addNewNeighbor(MacAddress addr);
-        void updateNeighborQuality(MacAddress addr, bool state);
-        void printTable();
-        void removeNeighbor(MacAddress addr);
 //      ****************************************************** EDIT *****************************************************     //
 };
 }
 
 
-#endif
+
+#endif /* LORAAPP_TRANSMITTER_H_ */

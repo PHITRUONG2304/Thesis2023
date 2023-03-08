@@ -16,7 +16,7 @@
 
 #include "LoRaAppPacket_m.h"
 #include "TDMA.h"
-#include "Deliverer.h"
+#include "NeighborTable.h"
 #include "LoRa/LoRaRadio.h"
 #include "mCommand_m.h"
 #include <queue>
@@ -28,35 +28,23 @@ using namespace std;
 namespace flora
 {
 
-    struct HEAT_Field
-    {
-        double PRR;
-        simtime_t timeToGW;
-    };
-
-    struct Neighbor_Info
-    {
-        MacAddress addr;
-        double PRR;
-        HEAT_Field heatValue;
-        simtime_t timestamp;
-    };
-
     class Container;
+
+    struct CurrentHEAT{
+        MacAddress addr;
+        HEAT_Field currentValue;
+    };
 
     class ReviseHEAT : public cSimpleModule, public ILifecycle
     {
     private:
         bool iAmGateway;
-        int max_neighbors;
-        HEAT_Field current_HEAT;
-        int currentNeighbors;
-        Neighbor_Info *neighbor_Table;
+        CurrentHEAT currentHEAT;
+        NeighborTable *neighborTable;
         int currentPath = -1;
         int sendAgainTimes = 0;
 
         TDMA *myTDMA;
-        Deliverer *myDeliverer;
         Container *myContainer;
 
         mCommand *updateAgain;
@@ -69,16 +57,15 @@ namespace flora
         virtual bool handleOperationStage(LifecycleOperation *operation, IDoneCallback *doneCallback) override;
         virtual void handleMessage(cMessage *msg) override;
         void calculateHEATField();
-        void sortNeighborTable();
+        void sortNeighborTable(NeighborHEATTable *table);
 
     public:
-        HEAT_Field getCurrentHEAT();
-        void updateNeighborTable(MacAddress addr, double PRR, simtime_t timeToGW, simtime_t timestamp);
+        CurrentHEAT getCurrentHEAT() { return this->currentHEAT; }
+        void updateNeighborTable(MacAddress addr, double PRR, simtime_t timeToGW);
         void addNewNeighborIntoTable(MacAddress addr, double PRR, simtime_t timeToGW, simtime_t timestamp);
         int isAlreadyExistNeighbor(MacAddress addr);
         MacAddress getCurrentPathToGW();
-        bool canUpdate() { return (current_HEAT.PRR != 0) ? true : false; }
-        void printTable();
+        bool canUpdate() { return (currentHEAT.addr != MacAddress::UNSPECIFIED_ADDRESS) ? true : false; }
         simtime_t getCurrentTimeToGW();
     };
 

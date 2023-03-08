@@ -12,33 +12,18 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with this program.  If not, see http://www.gnu.org/licenses/.
 // 
-import inet.linklayer.common.MacAddress;
 
+package flora.LoRaApp;
 
-namespace flora;
-
-//
-// TODO generated message class
-//
-
-enum mCommandType
+simple Receiver
 {
-    SEND_INVITATION = 1;
-    SEND_REQUEST = 2;
-    SEND_ACCEPT_ACK = 3;
-    SEND_REFUSE_ACK = 4;
-    UPDATE_NEIGHBOR_INFO = 5;
-    SEND_UPDATE_HEAT = 6;
-    STOP_UPDATE_HEAT = 7;
-    START_GENERATE_PACKET = 8;
-    SEND_DATA_PACKET = 9;
-    SEND_ACK = 10;
-}
-
-message mCommand extends cMessage {
-    inet::MacAddress address;
-    int slot;
-    
-    double PRR;
-    simtime_t timeToGW;
+    parameters:
+        
+    gates:
+        input lowerLayerIn @labels(TDMA/lowerIn);
+        
+        output To_Container @labels(Deliverer/D2C);
+        output To_TDMA @labels(Deliverer/D2T);
+        output To_Heat @labels(Deliverer/D2H);
+        
 }

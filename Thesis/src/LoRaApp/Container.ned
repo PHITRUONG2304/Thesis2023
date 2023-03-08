@@ -24,8 +24,8 @@ simple Container
 		double start_generate @unit(s) = default(5000s);
 		
 	gates:
-        input From_Deliverer @labels(Container/D2C);
+        input From_Receiver @labels(Container/R2C);
         input From_TDMA @labels(Container/T2C);
-        output To_Deliverer@labels(Container/C2D);
+        output To_Transmitter@labels(Container/C2D);
         
 }

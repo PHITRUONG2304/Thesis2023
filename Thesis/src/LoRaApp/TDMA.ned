@@ -26,9 +26,9 @@ simple TDMA
         int send_again_times = default(3);
         
     gates:        
-        input From_Deliverer @labels(TDMA/D2T);
+        input From_Receiver @labels(TDMA/R2T);
         
-        output To_Deliverer @labels(TDMA/T2D);
+        output To_Transmitter @labels(TDMA/T2D);
         output To_Heat @labels(TDMA/T2H);
         output To_Container @labels(TDMA/T2C);
 }

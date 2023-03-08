@@ -15,7 +15,7 @@
 
 package flora.LoRaApp;
 
-simple Deliverer
+simple Transmitter
 {
     parameters:
         @signal[LoRa_AppPacketSent](type=long); // optional
@@ -31,14 +31,8 @@ simple Deliverer
 	    int maxNeighbours = default(10);
     gates:
         input From_Container @labels(Deliverer/C2D);
-        output To_Container @labels(Deliverer/D2C);
-        
-        input From_TDMA @labels(Deliverer/T2D);
-        output To_TDMA @labels(Deliverer/D2T);
-        
+        input From_TDMA @labels(Deliverer/T2D);    
         input From_Heat @labels(Deliverer/H2D);
-        output To_Heat @labels(Deliverer/D2H);
         
-        input lowerLayerIn @labels(TDMA/lowerIn);
         output lowerLayerOut @labels(TDMA/lowerOut);
 }
