@@ -20,7 +20,6 @@
 #include "ReviseHEAT.h"
 #include "NeighborTable.h"
 
-#include "LoRa/LoRaRadio.h"
 #include <queue>
 
 using namespace omnetpp;
@@ -48,7 +47,6 @@ namespace flora
         NeighborTable *neighborTable;
         State fsmState = NORMAL;
         ReviseHEAT *myHEATer;
-        TDMA *myTDMA;
 
         cMessage *generatePacket;
 

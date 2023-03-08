@@ -56,6 +56,7 @@ namespace flora
         void finish() override;
         virtual bool handleOperationStage(LifecycleOperation *operation, IDoneCallback *doneCallback) override;
         virtual void handleMessage(cMessage *msg) override;
+//        Tinh toan gia tri HEAT hien tai
         void calculateHEATField();
         void sortNeighborTable(NeighborHEATTable *table);
 
@@ -65,7 +66,9 @@ namespace flora
         void addNewNeighborIntoTable(MacAddress addr, double PRR, simtime_t timeToGW, simtime_t timestamp);
         int isAlreadyExistNeighbor(MacAddress addr);
         MacAddress getCurrentPathToGW();
+//        Kiem tra xem hien tai co the gui thong tin HEAT cho cac neighbor khac hay chua
         bool canUpdate() { return (currentHEAT.addr != MacAddress::UNSPECIFIED_ADDRESS) ? true : false; }
+//        Lay thoi gian goi tin den duoc gateway (bao gom waiting time and transmission time)
         simtime_t getCurrentTimeToGW();
     };
 

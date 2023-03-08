@@ -31,7 +31,6 @@ namespace flora
 
             this->neighborTable = check_and_cast<NeighborTable *>(getParentModule()->getSubmodule("NeighborTable"));
             this->myHEATer = check_and_cast<ReviseHEAT *>(getParentModule()->getSubmodule("ReviseHEAT"));
-            this->myTDMA = check_and_cast<TDMA *>(getParentModule()->getSubmodule("TDMA"));
 
             generatePacket = new cMessage("Generate packet");
             scheduleAt(simTime() + par("start_generate"), generatePacket);

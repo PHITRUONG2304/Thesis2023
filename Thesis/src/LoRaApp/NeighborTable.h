@@ -89,24 +89,41 @@ namespace flora
     public:
         NeighborTable() {}
 //        For TDMA
+//        Kiem tra xem neighbor da ton tai trong neighbor table chua
         bool isAlreadyExistNeighbor(MacAddress address);
+//        Them moi mot neighbor da thiet lap giao tiep neu chua ton tai
         bool addNewCommunicationSlot(MacAddress address, int slot, bool waitUpdate);
+//        Xoa 1 neighbor khoi bang neighbor table - dung cho khi neighbor mat ket noi hoac dung cho giai thuat TDMA
         void removeNeighbor(MacAddress address);
+//        Kiem tra xem slot nay da duoc thiet lap ket noi voi neighbor nao chua
         bool isBusySlot(int slot){ return this->neighborTable[slot].isBusy; }
+//        Dung cho cap nhat de khong dung do
         bool waitUpdateInThisSlot(int slot) { return this->neighborTable[slot].waitUpdateFrom; }
+//        Lay ra dia chi cua neighbor giao tiep o 1 slot cu the
         MacAddress getCommunicationNeighbor(int slot) { return this->neighborTable[slot].address; }
+//        Lay so thu tu slot giao tiep cua 1 neighbor
         int getCommunicationSlot(MacAddress address);
 //        For ReviseHEAT
+//        cap nhat thong tin HEAT vao trong neighbor table
         void updateHEATValue(MacAddress address, double PRR, simtime_t timeToGW);
+//        Lay thong tin de tin toan gia tri HEAT hien tai
         NeighborHEATTable *getCurrentHEATTable();
 //        For Container
+//        Them goi tin moi vao 1 neighbor cu the
         bool addNewPacketTo(MacAddress address, LoRaAppPacket *packet);
+//        Lay goi tin de chuan bi chuyen tiep cho neighbor
         LoRaAppPacket *peekPacket(MacAddress address);
+//        Xoa goi tin khi goi tin da gui thanh cong
         void popPacket(MacAddress address);
+//        Cap nhat trang thai goi tin da gui den 1 neighbor (success, fail)
         void updateSendPacketState(MacAddress address, bool state);
+//        Queue chua goi tin day hay chua
         bool isFull(MacAddress address);
+//        Queueuchua goi tin co goi tin hay khong
         bool isEmpty(MacAddress address);
+//        Lay ra so luong neighbors da thiet lap ket noi
         int getConnectedCurrentNeighbors(){ return current_neighbors; }
+//        Tinh toan chat luong cua 1 neighbor
         double getNeighborQuality(MacAddress addr);
     };
 }
