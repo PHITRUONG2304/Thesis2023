@@ -86,8 +86,13 @@ Define_Module(Transmitter);
                 sendHEAT_packet(command->getAddress(), command->getPRR(), command->getTimeToGW());
                 break;
             case SEND_DATA_PACKET:
+                sendDATA_packet(command->getAddress(), (void*)command->getData());
                 break;
-            case SEND_ACK:
+            case SEND_ACK_SUCCESS:
+                sendACK_packet(command->getAddress(), command->getSeqNum(), true);
+                break;
+            case SEND_ACK_FAIL:
+                sendACK_packet(command->getAddress(), command->getSeqNum(), false);
                 break;
             }
         }
@@ -118,22 +123,58 @@ Define_Module(Transmitter);
         emit(LoRa_AppPacketSent, getSF());
     }
 
-    void Transmitter::sendDATA_packet(Packet *packet)
+    void Transmitter::sendDATA_packet(MacAddress address, void *data)
     {
-        auto loraTag = packet->addTagIfAbsent<LoRaTag>();
+        auto newData = (LoRaAppPacket*)data;
+        auto pktData = new Packet("Data packet");
+        pktData->setKind(DATA_PACKET);
+
+        auto payload = makeShared<LoRaAppPacket>();
+        payload->setChunkLength(B(par("dataSize").intValue()));
+        payload->setMsgType(DATA_PACKET);
+
+        payload->setHopNum(newData->getHopNum());
+        payload->setSeqNum(newData->getSeqNum());
+        payload->setPayload(newData->getPayload());
+        payload->setOriginAddress(newData->getOriginAddress());
+        payload->setGeneratedTime(newData->getGeneratedTime());
+
+
+        auto loraTag = pktData->addTagIfAbsent<LoRaTag>();
         loraTag->setBandwidth(getBW());
         loraTag->setCenterFrequency(getCF());
         loraTag->setSpreadFactor(getSF());
         loraTag->setCodeRendundance(getCR());
         loraTag->setPower(mW(math::dBmW2mW(getTP())));
+        loraTag->setDestination(address);
 
-        send(packet, "lowerLayerOut");
+        pktData->insertAtBack(payload);
+        send(pktData, "lowerLayerOut");
         emit(LoRa_AppPacketSent, getSF());
     }
 
-    void Transmitter::sendACK_packet(MacAddress destination, bool success)
+    void Transmitter::sendACK_packet(MacAddress destination, uint32_t seqNum, bool success)
     {
+        auto ackDataPkt = new Packet("Acknowledge data packet");
+        ackDataPkt->setKind(success? RECEIVED_SUCCESS : UNABLE_RECEIVE_MORE);
 
+        auto payload = makeShared<LoRaAppPacket>();
+        payload->setChunkLength(B(par("dataSize").intValue()));
+        payload->setMsgType(success? RECEIVED_SUCCESS : UNABLE_RECEIVE_MORE);
+        payload->setSeqNum(seqNum);
+
+
+        auto loraTag = ackDataPkt->addTagIfAbsent<LoRaTag>();
+        loraTag->setBandwidth(getBW());
+        loraTag->setCenterFrequency(getCF());
+        loraTag->setSpreadFactor(getSF());
+        loraTag->setCodeRendundance(getCR());
+        loraTag->setPower(mW(math::dBmW2mW(getTP())));
+        loraTag->setDestination(destination);
+
+        ackDataPkt->insertAtBack(payload);
+        send(ackDataPkt, "lowerLayerOut");
+        emit(LoRa_AppPacketSent, getSF());
     }
 
     void Transmitter::sendFreeslot_packet(int slot, double myPRR, simtime_t timeToGW)

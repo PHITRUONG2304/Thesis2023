@@ -74,6 +74,7 @@ class TDMA : public cSimpleModule, public ILifecycle
         simtime_t getShortestWaitingTime(MacAddress dest);
         bool hasEstablishedCommunicationWith(MacAddress src) { return this->neighborTable->isAlreadyExistNeighbor(src); }
         int getCurrentSlot(){return this->current_slot;}
+        MacAddress getCurrentNeighborCommunicating() { return this->neighborTable->getCommunicationNeighbor(current_slot); }
         simtime_t getCurrentTimeSlotStartTime(){return this->timeslot_start_time;}
         bool needUpdateBack() { return this->neighborTable->waitUpdateInThisSlot(current_slot); }
         void updateNeighborInfo(Packet *pkt);

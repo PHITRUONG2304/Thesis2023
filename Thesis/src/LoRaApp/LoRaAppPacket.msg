@@ -25,15 +25,14 @@ namespace flora;
 
 enum AppPacketType
 {
-    JOIN_INVITE = 1;
-    JOIN_REQUEST = 2;
-    JOIN_ACCEPT_REPLY = 3;
-    JOIN_REFUSE_REPLY = 4;
-    HEAT_INFO = 5;
-    DATA_PACKET = 6;
-    FORWARD_PACKET = 7;
-    UNABLE_RECEIVE_MORE = 8;
-    RECEIVED_SUCCESS = 9;
+    JOIN_INVITE 		= 1;
+    JOIN_REQUEST 		= 2;
+    JOIN_ACCEPT_REPLY 	= 3;
+    JOIN_REFUSE_REPLY 	= 4;
+    HEAT_INFO 			= 5;
+    DATA_PACKET			= 6;
+    UNABLE_RECEIVE_MORE = 7;
+    RECEIVED_SUCCESS 	= 8;
 }
 
 class LoRaOptions {

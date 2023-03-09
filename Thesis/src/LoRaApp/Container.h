@@ -19,6 +19,7 @@
 #include "TDMA.h"
 #include "ReviseHEAT.h"
 #include "NeighborTable.h"
+#include "../LoRa/LoRaMac.h"
 
 #include <queue>
 
@@ -33,10 +34,7 @@ namespace flora
     enum State
     {
         NORMAL,
-        DISPATCHING,
-        ACK_FAIL,
-        ACK_SUCCESS,
-        FORWARDING
+        WAITINGACK
     };
 
     class Container : public cSimpleModule, public ILifecycle
@@ -47,8 +45,17 @@ namespace flora
         NeighborTable *neighborTable;
         State fsmState = NORMAL;
         ReviseHEAT *myHEATer;
+        bool iAmGateway;
+
+        MacAddress waitingAckFrom = MacAddress::UNSPECIFIED_ADDRESS;
+        int sentTimes = 0;
 
         cMessage *generatePacket;
+        cMessage *timeoutWaitACK;
+
+//        For statistics
+        LoRaMac *macLayer;
+        int rPacketNum = 0;
 
     protected:
         void initialize(int stage) override;
@@ -56,14 +63,20 @@ namespace flora
         void finish() override;
         virtual bool handleOperationStage(LifecycleOperation *operation, IDoneCallback *doneCallback) override;
         void handleMessage(cMessage *msg) override;
+        void handleSelfMessage(cMessage *msg);
+        void stateTransitions(cMessage *msg);
+        void handleWithFsm(cMessage *msg);
 
     public:
-        void handleWithFsm(cMessage *msg);
         bool disPatchPacket(LoRaAppPacket *packet);
         bool disPatchPacket(Packet *packet);
         void generatingPacket();
         bool canAddMore(MacAddress addr){ return this->neighborTable->isFull(addr); }
         bool forwardDataPacket(MacAddress addr);
+        bool forwardDataPacket(Packet *pkt);
+        void sendACKCommand(Packet *pkt, bool status);
+        bool updateNeighborInfo(Packet *pkt);
+        bool updateSendPacketState(MacAddress addr, int state);
     };
 
 }

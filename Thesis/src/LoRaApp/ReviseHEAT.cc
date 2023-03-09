@@ -93,7 +93,6 @@ namespace flora
                     EV << "Source address= " << addr->getSrcAddress() << ", PRR= " << pkt->getPRR() << ", timeToGW= " << pkt->getTimeToGW() << endl;
 
                     updateNeighborTable(addr->getSrcAddress(), pkt->getPRR(), pkt->getTimeToGW());
-                    calculateHEATField();
 
                     if(this->myTDMA->needUpdateBack())
                     {
@@ -137,7 +136,6 @@ namespace flora
                 {
                     EV << "Receive command: Update neighbor's HEAT information\n";
                     this->updateNeighborTable(command->getAddress(), command->getPRR(), command->getTimeToGW());
-                    this->calculateHEATField();
 
                     mCommand *myCommand = new mCommand("Send accept message to communicate in this time-slot");
                     myCommand->setKind(SEND_ACCEPT_ACK);
@@ -152,7 +150,6 @@ namespace flora
                 {
                     EV << "Receive command: Update neighbor's HEAT information\n";
                     this->updateNeighborTable(command->getAddress(), command->getPRR(), command->getTimeToGW());
-                    this->calculateHEATField();
                 }
                 else if(command->getKind() == SEND_UPDATE_HEAT)
                 {
@@ -179,6 +176,7 @@ namespace flora
     void ReviseHEAT::updateNeighborTable(MacAddress addr, double PRR, simtime_t timeToGW)
     {
         this->neighborTable->updateHEATValue(addr, PRR, timeToGW);
+        this->calculateHEATField();
     }
 
     void ReviseHEAT::calculateHEATField()
@@ -195,9 +193,11 @@ namespace flora
             {
                 this->currentHEAT.addr = table[i].addr;
                 this->currentHEAT.currentValue = {table[i].PRR, table[i].timeToGW};
-                break;
+                return;
             }
         }
+        this->currentHEAT.addr = MacAddress::UNSPECIFIED_ADDRESS;
+        this->currentHEAT.currentValue = {0, -1};
     }
 
     int compareValues(const void *a, const void *b)

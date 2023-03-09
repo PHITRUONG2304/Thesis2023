@@ -40,17 +40,18 @@ namespace flora
     class DataQueue
     {
     private:
-        int32_t length;
+        int32_t len;
         int32_t maxlength;
         queue <LoRaAppPacket* > receivedPackets;
 
     public:
         DataQueue(int32_t maxlength = 50);
         ~DataQueue() {}
-        bool isFull() { return this->maxlength == this->length; }
-        bool isEmpty() { return this->length == 0; }
+        bool isFull() { return this->maxlength == this->len; }
+        bool isEmpty() { return this->len == 0; }
         bool addPacket(LoRaAppPacket* packet);
         LoRaAppPacket *peekPacket();
+        int32_t length() { return len; }
         void popPacket();
         void clear();
     };
@@ -70,6 +71,9 @@ namespace flora
         bool *lastState;
 //        The slot has setup
         bool isBusy;
+
+//        for testing
+        int rPacketNum;
     };
 
 
@@ -103,11 +107,13 @@ namespace flora
         MacAddress getCommunicationNeighbor(int slot) { return this->neighborTable[slot].address; }
 //        Lay so thu tu slot giao tiep cua 1 neighbor
         int getCommunicationSlot(MacAddress address);
+
 //        For ReviseHEAT
 //        cap nhat thong tin HEAT vao trong neighbor table
         void updateHEATValue(MacAddress address, double PRR, simtime_t timeToGW);
 //        Lay thong tin de tin toan gia tri HEAT hien tai
         NeighborHEATTable *getCurrentHEATTable();
+
 //        For Container
 //        Them goi tin moi vao 1 neighbor cu the
         bool addNewPacketTo(MacAddress address, LoRaAppPacket *packet);

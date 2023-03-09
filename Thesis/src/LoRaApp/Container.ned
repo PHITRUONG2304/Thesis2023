@@ -19,9 +19,12 @@ simple Container
 {
     parameters:
         int max_neighbors = default(10);
-		int queue_length = default(50);
-		double generate_packet_interval @unit(s) = default(60s);
+		int queue_length = default(500);
+		double generate_packet_interval @unit(s) = default(1000s);
 		double start_generate @unit(s) = default(5000s);
+		double timeoutACK @unit(s) = default(200ms);
+		int send_again_times = default(3);
+		bool iAmGateway = default(false);
 		
 	gates:
         input From_Receiver @labels(Container/R2C);

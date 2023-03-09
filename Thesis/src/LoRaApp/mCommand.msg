@@ -13,9 +13,10 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/.
 // 
 import inet.linklayer.common.MacAddress;
-
+import LoRaAppPacket;
 
 namespace flora;
+
 
 //
 // TODO generated message class
@@ -23,22 +24,30 @@ namespace flora;
 
 enum mCommandType
 {
-    SEND_INVITATION = 1;
-    SEND_REQUEST = 2;
-    SEND_ACCEPT_ACK = 3;
-    SEND_REFUSE_ACK = 4;
-    UPDATE_NEIGHBOR_INFO = 5;
-    SEND_UPDATE_HEAT = 6;
-    STOP_UPDATE_HEAT = 7;
-    START_GENERATE_PACKET = 8;
-    SEND_DATA_PACKET = 9;
-    SEND_ACK = 10;
+    SEND_INVITATION			= 101;
+    SEND_REQUEST			= 102;
+    SEND_ACCEPT_ACK			= 103;
+    SEND_REFUSE_ACK			= 104;
+    UPDATE_NEIGHBOR_INFO	= 105;
+    SEND_UPDATE_HEAT		= 106;
+    START_GENERATE_PACKET	= 107;
+    SEND_DATA_PACKET		= 108;
+    SEND_ACK_SUCCESS		= 109;
+    SEND_ACK_FAIL			= 110;
 }
 
 message mCommand extends cMessage {
     inet::MacAddress address;
+//    for setup communication slot
     int slot;
     
+//    for update HEAT and broadcast information
     double PRR;
     simtime_t timeToGW;
+    
+//    for Data packet
+    int payload;
+    uint32_t seqNum;
+    int hopNum;
+    LoRaAppPacket *data;
 }

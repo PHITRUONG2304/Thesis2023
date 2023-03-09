@@ -16,7 +16,7 @@ namespace flora
     DataQueue::DataQueue(int32_t maxlength)
     {
         this->maxlength = maxlength;
-        this->length = 0;
+        this->len = 0;
     }
 
 
@@ -26,7 +26,8 @@ namespace flora
             return false;
 
         this->receivedPackets.push(packet);
-        this->length++;
+        this->len++;
+
         return true;
     }
 
@@ -40,11 +41,11 @@ namespace flora
         if (isEmpty()) return;
 
         this->receivedPackets.pop();
-        this->length--;
+        this->len--;
     }
     void DataQueue::clear()
     {
-        int number = this->length;
+        int number = this->len;
         for(int i=0; i < number; i++)
             popPacket();
     }
@@ -75,6 +76,7 @@ namespace flora
     void NeighborTable::finish()
     {
         printTable();
+        EV <<"The number of connected neighbors: " << this->current_neighbors << endl;
     }
 
     bool NeighborTable::isAlreadyExistNeighbor(MacAddress address)
@@ -113,6 +115,7 @@ namespace flora
                 break;
             }
         }
+        this->current_neighbors--;
     }
 
     int NeighborTable::getCommunicationSlot(MacAddress address)
@@ -147,7 +150,7 @@ namespace flora
 
     NeighborHEATTable* NeighborTable::getCurrentHEATTable()
     {
-        NeighborHEATTable *tempTable = new NeighborHEATTable[current_neighbors + 1];
+        NeighborHEATTable *tempTable = new NeighborHEATTable[current_neighbors];
 
         int index = 0;
         for(int i=0; i < this->max_communication_neighbors; i++)
@@ -185,7 +188,6 @@ namespace flora
             if(this->neighborTable[i].address == address)
                 return neighborTable[i].dataQueue->addPacket(packet);
         }
-
         throw "Don't have the respective neighbor";
     }
 
@@ -214,6 +216,7 @@ namespace flora
                 if(!neighborTable[i].dataQueue->isEmpty())
                     neighborTable[i].dataQueue->popPacket();
 
+                EV <<"neighborTable[" << i <<"].dataQueue->length = " <<  neighborTable[i].dataQueue->length() << endl;
                 break;
             }
         }
@@ -249,6 +252,8 @@ namespace flora
                 << std::left << std::setw(2) << "|" << std::left << std::setw(8) << "PRR" <<std::left << std::setw(2) << " "
                 << std::left << std::setw(2) << "|" << std::left << std::setw(8) << "timeToGW" <<std::left << std::setw(2) << " "
                 << std::left << std::setw(2) << "|" << std::left << std::setw(8) << "waitU" <<std::left << std::setw(2) << " "
+                << std::left << std::setw(2) << "|" << std::left << std::setw(8) << "numPkt" <<std::left << std::setw(2) << " "
+                << std::left << std::setw(2) << "|" << std::left << std::setw(8) << "Slot" <<std::left << std::setw(2) << " "
                 << endl;
 
         for(int i = 0; i < this->max_communication_neighbors; i++){
@@ -257,6 +262,8 @@ namespace flora
                         << std::left << std::setw(2) << "|" << std::left << std::setw(8) << this->neighborTable[i].heatValue.PRR <<std::left << std::setw(2) << " "
                         << std::left << std::setw(2) << "|" << std::left << std::setw(8) << this->neighborTable[i].heatValue.timeToGW <<std::left << std::setw(2) << " "
                         << std::left << std::setw(2) << "|" << std::left << std::setw(8) << this->neighborTable[i].waitUpdateFrom <<std::left << std::setw(2) << " "
+                        << std::left << std::setw(2) << "|" << std::left << std::setw(8) << this->neighborTable[i].dataQueue->length() <<std::left << std::setw(2) << " "
+                        << std::left << std::setw(2) << "|" << std::left << std::setw(8) << i <<std::left << std::setw(2) << " "
                         << endl;
         }
     }

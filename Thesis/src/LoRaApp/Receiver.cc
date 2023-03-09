@@ -62,7 +62,6 @@ namespace flora
                 break;
 
             case DATA_PACKET:
-            case FORWARD_PACKET:
             case UNABLE_RECEIVE_MORE:
             case RECEIVED_SUCCESS:
                 send(msg->dup(), "To_Container");

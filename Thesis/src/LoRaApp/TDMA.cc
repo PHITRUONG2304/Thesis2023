@@ -61,7 +61,7 @@ namespace flora
             this->current_slot = (this->current_slot + 1) % par("max_neighbors").intValue();
             this->timeslot_start_time = simTime();
             this->state = IDLE;
-
+            EV <<"The current slot is: " << this->current_slot << endl;
             if (!this->neighborTable->isBusySlot(current_slot))
             {
                 grantFreeSlot = new cMessage("Broadcast free slot message");
@@ -73,13 +73,14 @@ namespace flora
                 {
                     mCommand *command = new mCommand("Send update HEAT value command");
                     command->setKind(SEND_UPDATE_HEAT);
-                    command->setAddress(this->neighborTable->getCommunicationNeighbor(current_slot));
+                    command->setAddress(getCurrentNeighborCommunicating());
                     command->setSlot(current_slot);
                     send(command, "To_Heat");
 
-//                    timeoutForUpdate = new cMessage("Schedule to send stop update HEAT value command");
-//                    scheduleAt(simTime() + par("timeslot_size").doubleValue()/10, timeoutForUpdate);
                 }
+
+                timeoutForUpdate = new cMessage("Schedule to send stop update HEAT value command");
+                scheduleAt(simTime() + par("timeslot_size").doubleValue()/10, timeoutForUpdate);
             }
 
             scheduleAt(simTime() + par("timeslot_size"), changeSlot);
@@ -127,12 +128,9 @@ namespace flora
         }
         else if (msg == timeoutForUpdate)
         {
-            mCommand *command = new mCommand("Send update HEAT value command");
-            command->setKind(STOP_UPDATE_HEAT);
-            send(command, "To_Heat");
-
             mCommand *sendDataCommand = new mCommand("Start sending packet if there are packets to serve");
             sendDataCommand->setKind(SEND_DATA_PACKET);
+            sendDataCommand->setAddress(getCurrentNeighborCommunicating());
             send(sendDataCommand, "To_Container");
 
             delete msg;

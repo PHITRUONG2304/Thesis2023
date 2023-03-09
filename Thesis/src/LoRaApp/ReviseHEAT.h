@@ -57,12 +57,12 @@ namespace flora
         virtual bool handleOperationStage(LifecycleOperation *operation, IDoneCallback *doneCallback) override;
         virtual void handleMessage(cMessage *msg) override;
 //        Tinh toan gia tri HEAT hien tai
-        void calculateHEATField();
         void sortNeighborTable(NeighborHEATTable *table);
 
     public:
         CurrentHEAT getCurrentHEAT() { return this->currentHEAT; }
         void updateNeighborTable(MacAddress addr, double PRR, simtime_t timeToGW);
+        void calculateHEATField();
         void addNewNeighborIntoTable(MacAddress addr, double PRR, simtime_t timeToGW, simtime_t timestamp);
         int isAlreadyExistNeighbor(MacAddress addr);
         MacAddress getCurrentPathToGW();
