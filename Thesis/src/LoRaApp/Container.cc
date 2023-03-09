@@ -45,9 +45,10 @@ namespace flora
 
     void Container::finish()
     {
-        cancelAndDelete(generatePacket);
         if(iAmGateway)
             EV <<"The number of received packets: " << this->rPacketNum << endl;
+        else
+            cancelAndDelete(generatePacket);
     }
 
     bool Container::handleOperationStage(LifecycleOperation *operation, IDoneCallback *doneCallback)

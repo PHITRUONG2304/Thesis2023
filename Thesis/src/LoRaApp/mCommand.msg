@@ -46,8 +46,6 @@ message mCommand extends cMessage {
     simtime_t timeToGW;
     
 //    for Data packet
-    int payload;
     uint32_t seqNum;
-    int hopNum;
     LoRaAppPacket *data;
 }
