@@ -16,7 +16,6 @@ namespace flora
     DataQueue::DataQueue(int32_t maxlength)
     {
         this->maxlength = maxlength;
-        this->len = 0;
     }
 
 
@@ -26,8 +25,6 @@ namespace flora
             return false;
 
         this->receivedPackets.push(packet);
-        this->len++;
-
         return true;
     }
 
@@ -38,16 +35,22 @@ namespace flora
 
     void DataQueue::popPacket()
     {
-        if (isEmpty()) return;
+        if(isEmpty())
+            return;
+
+        LoRaAppPacket *frontElement = this->receivedPackets.front();
+        delete frontElement;
 
         this->receivedPackets.pop();
-        this->len--;
     }
     void DataQueue::clear()
     {
-        int number = this->len;
-        for(int i=0; i < number; i++)
-            popPacket();
+        while(!isEmpty()){
+            LoRaAppPacket *frontElement = this->receivedPackets.front();
+            delete frontElement;
+
+            this->receivedPackets.pop();
+        }
     }
 
     void NeighborTable::initialize(int stage)
@@ -68,15 +71,17 @@ namespace flora
             for(int j=0; j < par("last_packet_number").intValue(); j++)
                 this->neighborTable[i].lastState[j] = true;
 
-            this->neighborTable[i].dataQueue = new DataQueue(par("queue_length").intValue());
+            this->neighborTable[i].dataQueue = DataQueue(par("queue_length").intValue());
             this->neighborTable[i].isBusy = false;
         }
     }
 
     void NeighborTable::finish()
     {
-        printTable();
-        EV <<"The number of connected neighbors: " << this->current_neighbors << endl;
+        for (int i = 0; i < this->max_communication_neighbors; i++)
+            delete[] this->neighborTable[i].lastState;
+
+        delete[] neighborTable;
     }
 
     bool NeighborTable::isAlreadyExistNeighbor(MacAddress address)
@@ -89,11 +94,32 @@ namespace flora
         return false;
     }
 
+    bool NeighborTable::isBetterSlot(MacAddress src, simtime_t timeToGW)
+    {
+        for(int i = 0; i < this->max_communication_neighbors; i++)
+        {
+            if(this->neighborTable[i].address == src)
+            {
+                if(this->neighborTable[i].heatValue.timeToGW > timeToGW)
+                    return true;
+            }
+        }
+        return false;
+    }
+
     bool NeighborTable::addNewCommunicationSlot(MacAddress address, int slot, bool waitUpdate)
     {
         if(this->neighborTable[slot].isBusy || (slot >= this->max_communication_neighbors))
             return false;
 
+        if(isAlreadyExistNeighbor(address))
+        {
+            DataQueue tempQueue = this->neighborTable[getCommunicationSlot(address)].dataQueue;
+            this->neighborTable[getCommunicationSlot(address)].dataQueue = this->neighborTable[slot].dataQueue;
+            this->neighborTable[slot].dataQueue = tempQueue;
+
+            removeNeighbor(address);
+        }
         this->neighborTable[slot].address = address;
         this->neighborTable[slot].isBusy = true;
         this->neighborTable[slot].waitUpdateFrom = waitUpdate;
@@ -160,7 +186,7 @@ namespace flora
                 tempTable[index].addr = this->neighborTable[i].address;
                 tempTable[index].timeToGW = this->neighborTable[i].heatValue.timeToGW;
                 tempTable[index].PRR = this->neighborTable[i].heatValue.PRR * getNeighborQuality(neighborTable[i].address);
-                tempTable[index].overload = this->neighborTable[i].dataQueue->isFull();
+                tempTable[index].overload = this->neighborTable[i].dataQueue.isFull();
                 index++;
             }
         }
@@ -176,7 +202,7 @@ namespace flora
                 for (int j = 0; j < par("last_packet_number").intValue() - 1; j++)
                     this->neighborTable[i].lastState[j] = this->neighborTable[i].lastState[j + 1];
 
-                this->neighborTable[i].lastState[99] = state;
+                this->neighborTable[i].lastState[par("last_packet_number").intValue() - 1] = state;
                 break;
             }
         }
@@ -186,7 +212,7 @@ namespace flora
         for(int i=0; i < this->max_communication_neighbors; i++)
         {
             if(this->neighborTable[i].address == address)
-                return neighborTable[i].dataQueue->addPacket(packet);
+                return neighborTable[i].dataQueue.addPacket(packet);
         }
         throw "Don't have the respective neighbor";
     }
@@ -197,10 +223,8 @@ namespace flora
         {
             if(this->neighborTable[i].address == address)
             {
-                if(!neighborTable[i].dataQueue->isEmpty())
-                    return neighborTable[i].dataQueue->peekPacket();
-                else
-                    return nullptr;
+                if(!neighborTable[i].dataQueue.isEmpty())
+                    return neighborTable[i].dataQueue.peekPacket();
             }
         }
 
@@ -213,10 +237,10 @@ namespace flora
         {
             if(this->neighborTable[i].address == address)
             {
-                if(!neighborTable[i].dataQueue->isEmpty())
-                    neighborTable[i].dataQueue->popPacket();
+                if(!neighborTable[i].dataQueue.isEmpty())
+                    neighborTable[i].dataQueue.popPacket();
 
-                EV <<"neighborTable[" << i <<"].dataQueue->length = " <<  neighborTable[i].dataQueue->length() << endl;
+                EV <<"NeighborTable[" << i <<"].dataQueue->length = " <<  neighborTable[i].dataQueue.length() << endl;
                 break;
             }
         }
@@ -227,9 +251,7 @@ namespace flora
         for(int i=0; i < this->max_communication_neighbors; i++)
         {
             if(this->neighborTable[i].address == address)
-            {
-                return this->neighborTable[i].dataQueue->isFull();
-            }
+                return this->neighborTable[i].dataQueue.isFull();
         }
         throw "Don't have the respective neighbor";
     }
@@ -240,7 +262,7 @@ namespace flora
         {
             if(this->neighborTable[i].address == address)
             {
-                return this->neighborTable[i].dataQueue->isEmpty();
+                return this->neighborTable[i].dataQueue.isEmpty();
             }
         }
         throw "Don't have the respective neighbor";
@@ -250,9 +272,10 @@ namespace flora
     {
         EV_INFO << std::left << std::setw(2) << "|" << std::left << std::setw(17) << "Address" <<std::left << std::setw(2) << " "
                 << std::left << std::setw(2) << "|" << std::left << std::setw(8) << "PRR" <<std::left << std::setw(2) << " "
+                << std::left << std::setw(2) << "|" << std::left << std::setw(8) << "Quality" <<std::left << std::setw(2) << " "
                 << std::left << std::setw(2) << "|" << std::left << std::setw(8) << "timeToGW" <<std::left << std::setw(2) << " "
                 << std::left << std::setw(2) << "|" << std::left << std::setw(8) << "waitU" <<std::left << std::setw(2) << " "
-                << std::left << std::setw(2) << "|" << std::left << std::setw(8) << "numPkt" <<std::left << std::setw(2) << " "
+                << std::left << std::setw(2) << "|" << std::left << std::setw(8) << "Pending" <<std::left << std::setw(2) << " "
                 << std::left << std::setw(2) << "|" << std::left << std::setw(8) << "Slot" <<std::left << std::setw(2) << " "
                 << endl;
 
@@ -260,9 +283,10 @@ namespace flora
             if(this->neighborTable[i].isBusy)
                 EV_INFO << std::left << std::setw(2) << "|" << std::left << std::setw(17) << this->neighborTable[i].address <<std::left << std::setw(2) << " "
                         << std::left << std::setw(2) << "|" << std::left << std::setw(8) << this->neighborTable[i].heatValue.PRR <<std::left << std::setw(2) << " "
+                        << std::left << std::setw(2) << "|" << std::left << std::setw(8) << 100 * this->getNeighborQuality(this->neighborTable[i].address) <<std::left << std::setw(2) << " "
                         << std::left << std::setw(2) << "|" << std::left << std::setw(8) << this->neighborTable[i].heatValue.timeToGW <<std::left << std::setw(2) << " "
                         << std::left << std::setw(2) << "|" << std::left << std::setw(8) << this->neighborTable[i].waitUpdateFrom <<std::left << std::setw(2) << " "
-                        << std::left << std::setw(2) << "|" << std::left << std::setw(8) << this->neighborTable[i].dataQueue->length() <<std::left << std::setw(2) << " "
+                        << std::left << std::setw(2) << "|" << std::left << std::setw(8) << this->neighborTable[i].dataQueue.length() <<std::left << std::setw(2) << " "
                         << std::left << std::setw(2) << "|" << std::left << std::setw(8) << i <<std::left << std::setw(2) << " "
                         << endl;
         }
@@ -284,5 +308,26 @@ namespace flora
         }
 
         return success/100.0;
+    }
+
+    void NeighborTable::changePath(MacAddress oldPath, MacAddress newPath)
+    {
+        if(oldPath == newPath)
+            return;
+
+        int old_index_path = this->getCommunicationSlot(oldPath);
+        int new_index_path = this->getCommunicationSlot(newPath);
+
+        DataQueue tempQueue = this->neighborTable[new_index_path].dataQueue;
+        this->neighborTable[new_index_path].dataQueue = this->neighborTable[old_index_path].dataQueue;
+        this->neighborTable[old_index_path].dataQueue = tempQueue;
+
+//        while(!this->neighborTable[old_index_path].dataQueue.isEmpty() || !this->neighborTable[new_index_path].dataQueue.isFull())
+//        {
+//            LoRaAppPacket *tempacket =  this->neighborTable[old_index_path].dataQueue.peekPacket();
+//            this->neighborTable[new_index_path].dataQueue.addPacket(tempacket);
+//            this->neighborTable[old_index_path].dataQueue.popPacket();
+//
+//        }
     }
 }

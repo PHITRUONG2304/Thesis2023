@@ -34,12 +34,15 @@ namespace flora
 
             changeSlot = new cMessage("Change slot");
             scheduleAt(simTime() + par("timeslot_size"), changeSlot);
+
+            stopBroadcastMsg = new cMessage("Stop broadcast message");
+            scheduleAt(simTime() + 4000, stopBroadcastMsg);
         }
     }
 
     void TDMA::finish()
     {
-        //    delete[] connectedNeighbors;
+        cancelAndDelete(changeSlot);
     }
 
     void TDMA::handleMessage(cMessage *msg)
@@ -58,11 +61,14 @@ namespace flora
         //    handle self message
         if (msg == changeSlot)
         {
+//            debug
+            this->neighborTable->printTable();
+//            end
             this->current_slot = (this->current_slot + 1) % par("max_neighbors").intValue();
             this->timeslot_start_time = simTime();
             this->state = IDLE;
             EV <<"The current slot is: " << this->current_slot << endl;
-            if (!this->neighborTable->isBusySlot(current_slot))
+            if (!this->neighborTable->isBusySlot(current_slot) && !stopBroadcast)
             {
                 grantFreeSlot = new cMessage("Broadcast free slot message");
                 scheduleAt(uniform(simTime(), simTime() + par("timeslot_size") - par("timeout_grant")), grantFreeSlot);
@@ -87,19 +93,25 @@ namespace flora
         }
         else if (msg == grantFreeSlot)
         {
-            mCommand *myCommand = new mCommand("Broadcast join invitation");
-            myCommand->setKind(SEND_INVITATION);
-            myCommand->setSlot(current_slot);
-            send(myCommand, "To_Heat");
+            if(state == IDLE)
+            {
+                mCommand *myCommand = new mCommand("Broadcast join invitation");
+                myCommand->setKind(SEND_INVITATION);
+                myCommand->setSlot(current_slot);
+                send(myCommand, "To_Heat");
 
-            this->state = WAITING_FOR_REQUEST;
+                this->state = WAITING_FOR_REQUEST;
 
-            // schedule to avoid avoid waiting requests forever
-            timeOutGrant = new cMessage("Timeout waiting for request");
-            scheduleAt(simTime() + par("timeout_grant"), timeOutGrant);
+                // schedule to avoid avoid waiting requests forever
+                timeOutGrant = new cMessage("Timeout waiting for request");
+                scheduleAt(simTime() + par("timeout_grant"), timeOutGrant);
+
+
+            }
 
             delete msg;
             grantFreeSlot = nullptr;
+
         }
         else if (msg == timeOutGrant)
         {
@@ -110,18 +122,26 @@ namespace flora
         }
         else if (msg == randomRequest)
         {
-            auto request = check_and_cast<RandomRequestMessage *>(msg);
-            mCommand *command = new mCommand("Send request slot");
-            command->setKind(SEND_REQUEST);
-            command->setAddress(request->getAddress());
-            command->setSlot(request->getRequestSlot());
-            send(command, "To_Transmitter");
+            if(state == REQUESTING)
+            {
+                auto request = check_and_cast<RandomRequestMessage *>(msg);
+                mCommand *command = new mCommand("Send request slot");
+                command->setKind(SEND_REQUEST);
+                command->setAddress(request->getAddress());
+                command->setSlot(request->getRequestSlot());
+                send(command, "To_Transmitter");
 
-            if (++request_again_times < par("send_again_times").intValue())
-                scheduleAt(simTime() + par("send_again_interval"), randomRequest);
+                if (++request_again_times < par("send_again_times").intValue())
+                    scheduleAt(simTime() + par("send_again_interval"), randomRequest);
+                else
+                {
+                    this->state = IDLE;
+                    delete msg;
+                    randomRequest = nullptr;
+                }
+            }
             else
             {
-                this->state = IDLE;
                 delete msg;
                 randomRequest = nullptr;
             }
@@ -135,6 +155,12 @@ namespace flora
 
             delete msg;
             timeoutForUpdate = nullptr;
+        }
+        else if(msg == stopBroadcastMsg)
+        {
+            stopBroadcast = true;
+            delete msg;
+            stopBroadcastMsg = nullptr;
         }
         else
         {
@@ -209,7 +235,7 @@ namespace flora
             if (pkt->getKind() == JOIN_REQUEST)
             {
                 EV << "Received join_request slot at TDMA module\n";
-                if (isAvailableSlot(packet->getSlot(), addr->getSrcAddress()))
+                if (isAvailableSlot(packet->getSlot()))
                 {
                     updateCommunicationSlot(addr->getSrcAddress(), packet->getSlot(), false);
                     updateNeighborInfo(pkt->dup());
@@ -239,14 +265,10 @@ namespace flora
         }
     }
 
-    bool TDMA::isAvailableSlot(int slot, MacAddress src)
+    bool TDMA::isAvailableSlot(int slot)
     {
         if (slot == -1)
             return false;
-
-        if (this->neighborTable->isAlreadyExistNeighbor(src))
-            this->neighborTable->removeNeighbor(src);
-
         return !(this->neighborTable->isBusySlot(slot));
     }
 

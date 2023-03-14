@@ -40,7 +40,6 @@ namespace flora
 
     void ReviseHEAT::finish()
     {
-        //    delete[] neighbor_Table;
         EV <<"My current HEAT value is: " << this->currentHEAT.addr << ", " << this->currentHEAT.currentValue.PRR << ", " << this->currentHEAT.currentValue.timeToGW << endl;
     }
 
@@ -55,69 +54,47 @@ namespace flora
     void ReviseHEAT::handleMessage(cMessage *msg)
     {
         if (msg->isSelfMessage())
-        {
-            if(msg == updateAgain)
-            {
-                if(this->sendAgainTimes < par("send_again_times").intValue())
-                {
-                    auto command = check_and_cast<mCommand *>(msg);
+            handleSelfMessage(msg);
 
-                    mCommand *myCommand = new mCommand("Send update HEAT value");
-                    myCommand->setKind(SEND_UPDATE_HEAT);
-                    myCommand->setPRR(this->currentHEAT.currentValue.PRR);
-                    myCommand->setTimeToGW(this->getCurrentTimeToGW());
-                    myCommand->setSlot(command->getSlot());
-                    myCommand->setAddress(command->getAddress());
-                    send(myCommand, "To_Transmitter");
-
-                    scheduleAt(simTime() + par("send_again_interval"), updateAgain);
-                    this->sendAgainTimes += 1;
-                }
-                else
-                {
-                    delete msg;
-                    updateAgain = nullptr;
-                }
-            }
-        }
         else
         {
             if (msg->getArrivalGate() == gate("From_Receiver"))
             {
-                if(msg->isPacket())
+                auto packet = check_and_cast<Packet *>(msg);
+                auto addr = packet->getTag<MacAddressInd>();
+                const auto &pkt = packet->peekAtFront<LoRaAppPacket>();
+
+//                debug
+                EV << "Source address= " << addr->getSrcAddress() << ", PRR= " << pkt->getPRR() << ", timeToGW= " << pkt->getTimeToGW() << endl;
+//                end
+
+                updateNeighborTable(addr->getSrcAddress(), pkt->getPRR(), pkt->getTimeToGW());
+
+                if(this->myTDMA->needUpdateBack())
                 {
-                    auto packet = check_and_cast<Packet *>(msg);
-                    auto addr = packet->getTag<MacAddressInd>();
-                    const auto &pkt = packet->peekAtFront<LoRaAppPacket>();
+                    mCommand *myCommand = new mCommand("Send update HEAT value");
+                    myCommand->setKind(SEND_UPDATE_HEAT);
+                    myCommand->setPRR(this->currentHEAT.currentValue.PRR);
+                    myCommand->setTimeToGW(this->getCurrentTimeToGW());
+                    myCommand->setSlot(pkt->getSlot());
+                    myCommand->setAddress(addr->getSrcAddress());
 
-                    EV << "Source address= " << addr->getSrcAddress() << ", PRR= " << pkt->getPRR() << ", timeToGW= " << pkt->getTimeToGW() << endl;
-
-                    updateNeighborTable(addr->getSrcAddress(), pkt->getPRR(), pkt->getTimeToGW());
-
-                    if(this->myTDMA->needUpdateBack())
+                    send(myCommand, "To_Transmitter");
+                }
+                else
+                {
+                    if(updateAgain != nullptr)
                     {
-                        mCommand *myCommand = new mCommand("Send update HEAT value");
-                        myCommand->setKind(SEND_UPDATE_HEAT);
-                        myCommand->setPRR(this->currentHEAT.currentValue.PRR);
-                        myCommand->setTimeToGW(this->getCurrentTimeToGW());
-                        myCommand->setSlot(this->myTDMA->getCurrentSlot());
-                        myCommand->setAddress(addr->getSrcAddress());
-
-                        send(myCommand, "To_Transmitter");
-                    }
-                    else
-                    {
-                        if(updateAgain != nullptr)
-                        {
-                            cancelAndDelete(updateAgain);
-                            updateAgain = nullptr;
-                        }
+                        cancelAndDelete(updateAgain);
+                        updateAgain = nullptr;
                     }
                 }
             }
             else if (msg->getArrivalGate() == gate("From_TDMA"))
             {
+                EV <<"Curren HEAT value " << this->currentHEAT.addr << ", PRR=" << this->currentHEAT.currentValue.PRR << ", timeToGW=" << this->currentHEAT.currentValue.timeToGW << endl;
                 auto command = check_and_cast<mCommand *>(msg);
+
                 if (command->getKind() == SEND_INVITATION)
                 {
                     if (canUpdate() || iAmGateway)
@@ -159,6 +136,7 @@ namespace flora
                     myCommand->setTimeToGW(this->getCurrentTimeToGW());
                     myCommand->setSlot(command->getSlot());
                     myCommand->setAddress(command->getAddress());
+
                     send(myCommand, "To_Transmitter");
 
                     updateAgain = new mCommand("Schedule an update in case your neighbor doesn't get it");
@@ -173,10 +151,38 @@ namespace flora
         }
     }
 
+    void ReviseHEAT::handleSelfMessage(cMessage *msg)
+    {
+        if(msg == updateAgain)
+        {
+            if(this->sendAgainTimes < par("send_again_times").intValue())
+            {
+                auto command = check_and_cast<mCommand *>(msg);
+
+                mCommand *myCommand = new mCommand("Send update HEAT value");
+                myCommand->setKind(SEND_UPDATE_HEAT);
+                myCommand->setPRR(this->currentHEAT.currentValue.PRR);
+                myCommand->setTimeToGW(this->getCurrentTimeToGW());
+                myCommand->setSlot(command->getSlot());
+                myCommand->setAddress(command->getAddress());
+                send(myCommand, "To_Transmitter");
+
+                scheduleAt(simTime() + par("send_again_interval"), updateAgain);
+                this->sendAgainTimes += 1;
+            }
+            else
+            {
+                delete msg;
+                updateAgain = nullptr;
+            }
+        }
+    }
+
     void ReviseHEAT::updateNeighborTable(MacAddress addr, double PRR, simtime_t timeToGW)
     {
         this->neighborTable->updateHEATValue(addr, PRR, timeToGW);
         this->calculateHEATField();
+        EV <<"Curren HEAT value " << this->currentHEAT.addr << ", PRR=" << this->currentHEAT.currentValue.PRR << ", timeToGW=" << this->currentHEAT.currentValue.timeToGW << endl;
     }
 
     void ReviseHEAT::calculateHEATField()
@@ -187,15 +193,17 @@ namespace flora
         NeighborHEATTable *table;
         table = this->neighborTable->getCurrentHEATTable();
         this->sortNeighborTable(table);
+
         for (int i = 0; i < this->neighborTable->getConnectedCurrentNeighbors(); i++)
         {
-            if(!table[i].overload)
+            if(!table[i].overload && table[i].PRR > 0)
             {
                 this->currentHEAT.addr = table[i].addr;
                 this->currentHEAT.currentValue = {table[i].PRR, table[i].timeToGW};
                 return;
             }
         }
+
         this->currentHEAT.addr = MacAddress::UNSPECIFIED_ADDRESS;
         this->currentHEAT.currentValue = {0, -1};
     }
@@ -209,23 +217,15 @@ namespace flora
         simtime_t timeToGWThroughB = ((NeighborHEATTable *)b)->timeToGW;
 
         if (PRRThroughA > PRRThroughB)
-        {
             return -1;
-        }
         else if (PRRThroughA < PRRThroughB)
-        {
             return 1;
-        }
         else
         {
             if (timeToGWThroughA > timeToGWThroughB)
-            {
                 return 1;
-            }
             else if (timeToGWThroughA < timeToGWThroughB)
-            {
                 return -1;
-            }
             else
                 return 0;
         }

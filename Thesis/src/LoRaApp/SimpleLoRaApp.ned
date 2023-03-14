@@ -54,7 +54,11 @@ module SimpleLoRaApp like IApp
         }
 
         NeighborTable: NeighborTable {
-            @display("p=300,33;i=block/table2");
+            @display("p=407,262;i=block/table2");
+        }
+
+        StatisticalModule: StatisticalModule {
+            @display("p=407,33;i=device/pc");
         }
 
     connections allowunconnected:

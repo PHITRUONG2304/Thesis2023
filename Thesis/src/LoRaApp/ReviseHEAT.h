@@ -56,6 +56,7 @@ namespace flora
         void finish() override;
         virtual bool handleOperationStage(LifecycleOperation *operation, IDoneCallback *doneCallback) override;
         virtual void handleMessage(cMessage *msg) override;
+        virtual void handleSelfMessage(cMessage *msg);
 //        Tinh toan gia tri HEAT hien tai
         void sortNeighborTable(NeighborHEATTable *table);
 

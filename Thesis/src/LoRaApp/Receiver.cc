@@ -54,22 +54,21 @@ namespace flora
             case JOIN_REQUEST:
             case JOIN_ACCEPT_REPLY:
             case JOIN_REFUSE_REPLY:
-                send(msg->dup(), "To_TDMA");
+                send(msg, "To_TDMA");
                 break;
 
             case HEAT_INFO:
-                send(msg->dup(), "To_Heat");
+                send(msg, "To_Heat");
                 break;
 
             case DATA_PACKET:
             case UNABLE_RECEIVE_MORE:
             case RECEIVED_SUCCESS:
-                send(msg->dup(), "To_Container");
+                send(msg, "To_Container");
                 break;
 
 
             }
         }
-        delete msg;
     }
 }

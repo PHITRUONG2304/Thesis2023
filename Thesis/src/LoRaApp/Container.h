@@ -20,6 +20,7 @@
 #include "ReviseHEAT.h"
 #include "NeighborTable.h"
 #include "../LoRa/LoRaMac.h"
+#include "StatisticalModule.h"
 
 #include <queue>
 
@@ -46,6 +47,7 @@ namespace flora
         State fsmState = NORMAL;
         ReviseHEAT *myHEATer;
         bool iAmGateway;
+        uint32_t prevSeqNum = INT32_MAX;
 
         MacAddress waitingAckFrom = MacAddress::UNSPECIFIED_ADDRESS;
         int sentTimes = 0;
@@ -55,7 +57,8 @@ namespace flora
 
 //        For statistics
         LoRaMac *macLayer;
-        int rPacketNum = 0;
+        int generatedPacketNum = 0;
+        StatisticalModule *sMachine;
 
     protected:
         void initialize(int stage) override;
@@ -72,11 +75,13 @@ namespace flora
         bool disPatchPacket(Packet *packet);
         void generatingPacket();
         bool canAddMore(MacAddress addr){ return this->neighborTable->isFull(addr); }
-        bool forwardDataPacket(MacAddress addr);
+        bool forwardDataPacket(MacAddress addr, /*for statics*/ bool again = false);
         bool forwardDataPacket(Packet *pkt);
         void sendACKCommand(Packet *pkt, bool status);
         bool updateNeighborInfo(Packet *pkt);
-        bool updateSendPacketState(MacAddress addr, int state);
+        bool updateSendPacketState(MacAddress addr, bool state);
+//        for statistic
+        void updateStatisticalData(Packet *packet);
     };
 
 }

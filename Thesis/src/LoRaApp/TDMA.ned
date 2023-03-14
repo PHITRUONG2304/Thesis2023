@@ -19,8 +19,8 @@ simple TDMA
 {
     parameters:
         int max_neighbors = default(10);
-        double timeslot_size @unit(s) = default(5000ms);
-        double timeout_grant @unit(s) = default(500ms);
+        double timeslot_size @unit(s) = default(10s);
+        double timeout_grant @unit(s) = default(1000ms);
         double send_again_interval @unit(s) = default(200ms);
         double transmittion_time @unit(s) = default(80ms);
         int send_again_times = default(3);

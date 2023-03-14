@@ -96,6 +96,7 @@ Define_Module(Transmitter);
                 break;
             }
         }
+        delete msg;
     }
 
     void Transmitter::sendHEAT_packet(MacAddress destination, double PRR, simtime_t timeToGW)

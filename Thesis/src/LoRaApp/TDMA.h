@@ -49,6 +49,7 @@ class TDMA : public cSimpleModule, public ILifecycle
         simtime_t timeslotSize;
         NeighborTable* neighborTable;
         TDMA_STATE state;
+        bool stopBroadcast = false;
 
         cMessage *changeSlot;
         cMessage *grantFreeSlot;
@@ -56,6 +57,7 @@ class TDMA : public cSimpleModule, public ILifecycle
         RandomRequestMessage *randomRequest;
         cMessage *timeoutForUpdate;
         int request_again_times;
+        cMessage *stopBroadcastMsg;
 
     protected:
         virtual void initialize(int stage) override;
@@ -69,10 +71,11 @@ class TDMA : public cSimpleModule, public ILifecycle
     public:
 
         void handleWithFsm(Packet *pkt);
-        bool isAvailableSlot(int slot, MacAddress src);
+        bool isAvailableSlot(int slot);
         void updateCommunicationSlot(MacAddress addr, int slotNumber, bool waitUpdateFrom) { this->neighborTable->addNewCommunicationSlot(addr, slotNumber, waitUpdateFrom); }
         simtime_t getShortestWaitingTime(MacAddress dest);
         bool hasEstablishedCommunicationWith(MacAddress src) { return this->neighborTable->isAlreadyExistNeighbor(src); }
+        bool isBetterCommunicationSlot(MacAddress src, simtime_t timeToGW) {return this->neighborTable->isBetterSlot(src, timeToGW); }
         int getCurrentSlot(){return this->current_slot;}
         MacAddress getCurrentNeighborCommunicating() { return this->neighborTable->getCommunicationNeighbor(current_slot); }
         simtime_t getCurrentTimeSlotStartTime(){return this->timeslot_start_time;}

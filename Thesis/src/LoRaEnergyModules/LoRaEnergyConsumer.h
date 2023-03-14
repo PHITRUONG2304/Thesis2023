@@ -50,8 +50,6 @@ protected:
     double supplyVoltage;
     // map between txPower (dBm) and supply current (mA)
     std::map<double, double> transmitterTransmittingSupplyCurrent;
-
-
 };
 
 }

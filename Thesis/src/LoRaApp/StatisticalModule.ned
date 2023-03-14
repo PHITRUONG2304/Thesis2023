@@ -15,19 +15,10 @@
 
 package flora.LoRaApp;
 
-simple Container
+simple StatisticalModule
 {
-    parameters:
-        int max_neighbors = default(10);
-		double generate_packet_interval @unit(s) = default(1000s);
-		double start_generate @unit(s) = default(5000s);
-		double timeoutACK @unit(s) = default(300ms);
-		int send_again_times = default(3);
-		bool iAmGateway = default(false);
-		
-	gates:
-        input From_Receiver @labels(Container/R2C);
-        input From_TDMA @labels(Container/T2C);
-        output To_Transmitter@labels(Container/C2D);
-        
+	parameters:
+	    int initialNeighbors = default(20);
+	    int initialHopNum = default(20);
+	    @class(StatisticalModule);
 }

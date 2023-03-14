@@ -40,15 +40,17 @@ namespace flora
             this->fsmState = NORMAL;
 //            For statistics
             this->macLayer = check_and_cast<LoRaMac* >(getParentModule()->getParentModule()->getSubmodule("LoRaNic")->getSubmodule("mac"));
+            this->sMachine = check_and_cast<StatisticalModule *>(getParentModule()->getSubmodule("StatisticalModule"));
         }
     }
 
     void Container::finish()
     {
-        if(iAmGateway)
-            EV <<"The number of received packets: " << this->rPacketNum << endl;
-        else
+        if(!iAmGateway)
+        {
+            EV <<"The number of generated packets: " << this->generatedPacketNum << endl;
             cancelAndDelete(generatePacket);
+        }
     }
 
     bool Container::handleOperationStage(LifecycleOperation *operation, IDoneCallback *doneCallback)
@@ -65,17 +67,17 @@ namespace flora
             handleSelfMessage(msg);
         else
         {
-            if (msg->getKind() == START_GENERATE_PACKET)
-            {
-                if (!generatePacket->isScheduled())
-                {
-                    generatePacket = new cMessage("Generate packet");
-                    scheduleAt(simTime(), generatePacket);
-                }
-            }
-            else
-                handleWithFsm(msg);
+//            if (msg->getKind() == START_GENERATE_PACKET)
+//            {
+//                if (!generatePacket->isScheduled())
+//                {
+//                    generatePacket = new cMessage("Generate packet");
+//                    scheduleAt(simTime(), generatePacket);
+//                }
+//            }
+//            else
 
+            handleWithFsm(msg);
             delete msg;
         }
     }
@@ -91,38 +93,39 @@ namespace flora
         {
             if(++sentTimes < par("send_again_times").intValue())
             {
-                this->forwardDataPacket(waitingAckFrom);
+                this->forwardDataPacket(waitingAckFrom, true);
                 scheduleAt(simTime() + par("timeoutACK"), timeoutWaitACK);
             }
             else
             {
                 delete msg;
+
                 if(this->updateSendPacketState(waitingAckFrom, false))
                 {
                     if(this->forwardDataPacket(waitingAckFrom))
                     {
                         this->fsmState = WAITINGACK;
+
                         sentTimes = 0;
                         timeoutWaitACK = new cMessage("Timeout for waiting an acknowledge packet");
                         scheduleAt(simTime() + par("timeoutACK"), timeoutWaitACK);
+                        return;
                     }
-                    else
-                        this->fsmState = NORMAL;
                 }
-                else
-                    this->fsmState = NORMAL;
+                this->fsmState = NORMAL;
             }
         }
     }
 
     void Container::handleWithFsm(cMessage *msg)
     {
+        EV <<"The current state is: " << this->fsmState << endl;
         switch (this->fsmState)
         {
         case NORMAL:
-//            EV <<"This is normal state, and address = " << check_and_cast<mCommand* >(msg)->getAddress() << endl;
             if(msg->getKind() == SEND_DATA_PACKET)
             {
+                EV <<"This is normal state, and address = " << (check_and_cast<mCommand* >(msg))->getAddress() << endl;
                 if(this->forwardDataPacket(check_and_cast<mCommand* >(msg)->getAddress()))
                 {
                     this->fsmState = WAITINGACK;
@@ -131,13 +134,12 @@ namespace flora
                     scheduleAt(simTime() + par("timeoutACK"), timeoutWaitACK);
                 }
             }
-            if(msg->getKind() == DATA_PACKET)
+            else if(msg->getKind() == DATA_PACKET)
             {
+                this->updateStatisticalData(check_and_cast<Packet *>(msg));
+
                 if (iAmGateway)
-                {
                     this->sendACKCommand(check_and_cast<Packet *>(msg), true);
-                    rPacketNum += 1;
-                }
                 else
                 {
                     if(this->disPatchPacket(check_and_cast<Packet *>(msg)))
@@ -156,6 +158,8 @@ namespace flora
                     cancelAndDelete(timeoutWaitACK);
 
                 this->updateSendPacketState(waitingAckFrom, true);
+                this->sMachine->updateStatisticalLoRaData(waitingAckFrom, true);
+
                 if(forwardDataPacket(waitingAckFrom))
                 {
                     sentTimes = 0;
@@ -178,12 +182,10 @@ namespace flora
                         sentTimes = 0;
                         timeoutWaitACK = new cMessage("Timeout for waiting an acknowledge packet");
                         scheduleAt(simTime() + par("timeoutACK"), timeoutWaitACK);
+                        return;
                     }
-                    else
-                        this->fsmState = NORMAL;
                 }
-                else
-                    this->fsmState = NORMAL;
+                this->fsmState = NORMAL;
             }
 
             break;
@@ -199,12 +201,24 @@ namespace flora
         MacAddress destAddr = MacAddress::UNSPECIFIED_ADDRESS;
         destAddr = myHEATer->getCurrentPathToGW();
 
+
+        if(destAddr == MacAddress::UNSPECIFIED_ADDRESS)
+        {
+            this->neighborTable->printTable();
+            cMessage *helloMsg = new cMessage("Testing");
+            scheduleAt(0, helloMsg);
+        }
+
         return this->neighborTable->addNewPacketTo(destAddr, packet);
     }
 
     bool Container::disPatchPacket(Packet *packet)
     {
         const auto &pkt = packet->peekAtFront<LoRaAppPacket>();
+//        check seqNum of previous packet
+        if(prevSeqNum == pkt->getSeqNum())
+            return true;
+        prevSeqNum = pkt->getSeqNum();
 
         auto newPkt = new LoRaAppPacket();
         newPkt->setHopNum(pkt->getHopNum());
@@ -226,6 +240,7 @@ namespace flora
         newPkt->setGeneratedTime(simTime());
 
         this->disPatchPacket(newPkt);
+        this->generatedPacketNum += 1;
     }
 
     bool Container::forwardDataPacket(Packet *pkt)
@@ -234,7 +249,7 @@ namespace flora
         return forwardDataPacket(addr->getSrcAddress());
     }
 
-    bool Container::forwardDataPacket(MacAddress addr)
+    bool Container::forwardDataPacket(MacAddress addr, /*for statics*/ bool again)
     {
         if (this->neighborTable->isEmpty(addr))
             return false;
@@ -248,7 +263,8 @@ namespace flora
         send(sendDataCommand, "To_Transmitter");
         waitingAckFrom = addr;
 
-        //        TODO
+        this->sMachine->updateStatisticalLoRaData(addr, false, again);
+//        TODO
         return true;
     }
     void Container::sendACKCommand(Packet *pkt, bool status)
@@ -274,12 +290,20 @@ namespace flora
 
         MacAddress newDest = this->myHEATer->getCurrentHEAT().addr;
 
+//        chuyen goi tin sang hang doi khac de chuyen cho neighbor moi
+        this->neighborTable->changePath(oldDest, newDest);
+
+        //        chuyen goi tin sang hang doi khac de chuyen cho neighbor moi
+        this->neighborTable->changePath(oldDest, newDest);
+
         return (oldDest == newDest);
     }
 
-    bool Container::updateSendPacketState(MacAddress addr, int state)
+    bool Container::updateSendPacketState(MacAddress addr, bool state)
     {
-        this->neighborTable->popPacket(addr);
+
+        if (state)
+            this->neighborTable->popPacket(addr);
 
         MacAddress oldDest = this->myHEATer->getCurrentHEAT().addr;
 
@@ -288,6 +312,17 @@ namespace flora
 
         MacAddress newDest = this->myHEATer->getCurrentHEAT().addr;
 
+//        chuyen goi tin sang hang doi khac de chuyen cho neighbor moi
+        this->neighborTable->changePath(oldDest, newDest);
+
+
         return (oldDest == newDest);
+    }
+    void Container::updateStatisticalData(Packet *packet)
+    {
+        auto addr = packet->getTag<MacAddressInd>();
+        const auto &pkt = packet->peekAtFront<LoRaAppPacket>();
+
+        this->sMachine->updateStatisticalLoRaData(pkt->getOriginAddress(), pkt->getHopNum());
     }
 }
