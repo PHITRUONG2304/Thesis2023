@@ -47,6 +47,9 @@ class TDMA : public cSimpleModule, public ILifecycle
         int current_slot;
         simtime_t timeslot_start_time;
         simtime_t timeslotSize;
+        simtime_t periodTimeForUpdate;
+        int maxNeighbors;
+
         NeighborTable* neighborTable;
         TDMA_STATE state;
         bool stopBroadcast = false;
@@ -56,8 +59,10 @@ class TDMA : public cSimpleModule, public ILifecycle
         cMessage *timeOutGrant;
         RandomRequestMessage *randomRequest;
         cMessage *timeoutForUpdate;
-        int request_again_times;
         cMessage *stopBroadcastMsg;
+        int request_again_times;
+        int maxSendAgain;
+        simtime_t sendAgainTime;
 
     protected:
         virtual void initialize(int stage) override;

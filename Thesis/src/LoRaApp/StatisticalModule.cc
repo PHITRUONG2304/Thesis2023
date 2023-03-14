@@ -136,7 +136,7 @@ namespace flora
                         << std::left << std::setw(2) << "|" << std::left << std::setw(10) << "numResent" <<std::left << std::setw(2) << " "
                         << std::left << std::setw(2) << "|" << std::left << std::setw(8) << "maxHops" <<std::left << std::setw(2) << " ";
         for(int i=0; i < maxHops; i++)
-            EV_INFO << std::left << std::setw(2) << "|" << std::left << i + 1 << std::setw(8) << " Hops" <<std::left << std::setw(2) << " ";
+            EV_INFO << std::left << std::setw(2) << "|" << std::left << std::setw(2) << i + 1 << std::left << std::setw(5) << " Hops" <<std::left << std::setw(2) << " ";
         EV_INFO << endl;
 
         for(int i = 0; i < this->currentNeighbors; i++){
@@ -146,7 +146,7 @@ namespace flora
                         << std::left << std::setw(2) << "|" << std::left << std::setw(10) << this->neighbors[i].numResent <<std::left << std::setw(2) << " "
                         << std::left << std::setw(2) << "|" << std::left << std::setw(8) << this->neighbors[i].maxCurrentHops <<std::left << std::setw(2) << " ";
             for(int j=0; j < this->neighbors[i].maxCurrentHops; j++)
-                EV_INFO << std::left << std::setw(2) << "|" << std::left << std::setw(9) << this->neighbors[i].numReceiveAccordingToHops[j] <<std::left << std::setw(2) << " ";
+                    EV_INFO << std::left << std::setw(2) << "|" << std::left << std::setw(7) << this->neighbors[i].numReceiveAccordingToHops[j] <<std::left << std::setw(2) << " ";
             EV_INFO << endl;
         }
     }

@@ -116,6 +116,7 @@ namespace flora
         void updateHEATValue(MacAddress address, double PRR, simtime_t timeToGW);
 //        Lay thong tin de tin toan gia tri HEAT hien tai
         NeighborHEATTable *getCurrentHEATTable();
+        HEAT_Field *getHEATof(MacAddress addr);
 
 //        For Container
 //        Them goi tin moi vao 1 neighbor cu the

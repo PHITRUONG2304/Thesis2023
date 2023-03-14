@@ -26,9 +26,10 @@ namespace flora
         else if (stage == INITSTAGE_APPLICATION_LAYER)
         {
             EV << "Initializing stage " << stage << ", at Container\n";
-            this->max_communication_neighbors = par("max_neighbors").intValue();
+            this->max_communication_neighbors = getParentModule()->par("max_neighbors").intValue();
             this->currentNeighbors = 0;
-            this->iAmGateway = par("iAmGateway").boolValue();
+            this->iAmGateway = getParentModule()->par("iAmGateway").boolValue();
+            this->maxSendTimes = getParentModule()->par("send_again_times").intValue();
 
             this->neighborTable = check_and_cast<NeighborTable *>(getParentModule()->getSubmodule("NeighborTable"));
             this->myHEATer = check_and_cast<ReviseHEAT *>(getParentModule()->getSubmodule("ReviseHEAT"));
@@ -48,7 +49,8 @@ namespace flora
     {
         if(!iAmGateway)
         {
-            EV <<"The number of generated packets: " << this->generatedPacketNum << endl;
+            EV <<"The number of successfully generated and dispatched packets is: " << this->generatedPacketNum << endl;
+            EV <<"The number of failed generated and dispatched packets is: " << this->generatedPacketFailNum << endl;
             cancelAndDelete(generatePacket);
         }
     }
@@ -67,16 +69,6 @@ namespace flora
             handleSelfMessage(msg);
         else
         {
-//            if (msg->getKind() == START_GENERATE_PACKET)
-//            {
-//                if (!generatePacket->isScheduled())
-//                {
-//                    generatePacket = new cMessage("Generate packet");
-//                    scheduleAt(simTime(), generatePacket);
-//                }
-//            }
-//            else
-
             handleWithFsm(msg);
             delete msg;
         }
@@ -91,7 +83,7 @@ namespace flora
         }
         else if (msg == timeoutWaitACK)
         {
-            if(++sentTimes < par("send_again_times").intValue())
+            if(++sentTimes < maxSendTimes)
             {
                 this->forwardDataPacket(waitingAckFrom, true);
                 scheduleAt(simTime() + par("timeoutACK"), timeoutWaitACK);
@@ -100,7 +92,7 @@ namespace flora
             {
                 delete msg;
 
-                if(this->updateSendPacketState(waitingAckFrom, false))
+                if(this->updateSentPacketState(waitingAckFrom, false))
                 {
                     if(this->forwardDataPacket(waitingAckFrom))
                     {
@@ -157,7 +149,7 @@ namespace flora
                 if(timeoutWaitACK->isScheduled())
                     cancelAndDelete(timeoutWaitACK);
 
-                this->updateSendPacketState(waitingAckFrom, true);
+                this->updateSentPacketState(waitingAckFrom, true);
                 this->sMachine->updateStatisticalLoRaData(waitingAckFrom, true);
 
                 if(forwardDataPacket(waitingAckFrom))
@@ -201,13 +193,8 @@ namespace flora
         MacAddress destAddr = MacAddress::UNSPECIFIED_ADDRESS;
         destAddr = myHEATer->getCurrentPathToGW();
 
-
         if(destAddr == MacAddress::UNSPECIFIED_ADDRESS)
-        {
-            this->neighborTable->printTable();
-            cMessage *helloMsg = new cMessage("Testing");
-            scheduleAt(0, helloMsg);
-        }
+           return false;
 
         return this->neighborTable->addNewPacketTo(destAddr, packet);
     }
@@ -216,9 +203,17 @@ namespace flora
     {
         const auto &pkt = packet->peekAtFront<LoRaAppPacket>();
 //        check seqNum of previous packet
-        if(prevSeqNum == pkt->getSeqNum())
-            return true;
-        prevSeqNum = pkt->getSeqNum();
+
+        auto myCurrentHEAT = this->myHEATer->getCurrentHEAT();
+        if(myCurrentHEAT.currentValue.PRR != pkt->getPRR() || myHEATer->getCurrentTimeToGW() != pkt->getTimeToGW())
+            return false;
+
+        if(pkt->getOriginAddress() != macLayer->getAddress())
+        {
+            if(prevSeqNum == pkt->getSeqNum())
+                return true;
+            prevSeqNum = pkt->getSeqNum();
+        }
 
         auto newPkt = new LoRaAppPacket();
         newPkt->setHopNum(pkt->getHopNum());
@@ -239,14 +234,10 @@ namespace flora
         newPkt->setOriginAddress(macLayer->getAddress());
         newPkt->setGeneratedTime(simTime());
 
-        this->disPatchPacket(newPkt);
-        this->generatedPacketNum += 1;
-    }
-
-    bool Container::forwardDataPacket(Packet *pkt)
-    {
-        auto addr = pkt->getTag<MacAddressInd>();
-        return forwardDataPacket(addr->getSrcAddress());
+        if(this->disPatchPacket(newPkt))
+            this->generatedPacketNum += 1;
+        else
+            this->generatedPacketFailNum += 1;
     }
 
     bool Container::forwardDataPacket(MacAddress addr, /*for statics*/ bool again)
@@ -255,14 +246,18 @@ namespace flora
             return false;
 
         auto dataPacket = this->neighborTable->peekPacket(addr);
+        auto neighborHEAT = this->neighborTable->getHEATof(addr);
         mCommand *sendDataCommand = new mCommand("Give command for Transmitter send Data packet");
         sendDataCommand->setKind(SEND_DATA_PACKET);
         sendDataCommand->setData(dataPacket);
+        sendDataCommand->setPRR(neighborHEAT->PRR);
+        sendDataCommand->setTimeToGW(neighborHEAT->timeToGW);
         sendDataCommand->setAddress(addr);
 
         send(sendDataCommand, "To_Transmitter");
-        waitingAckFrom = addr;
+        delete neighborHEAT;
 
+        waitingAckFrom = addr;
         this->sMachine->updateStatisticalLoRaData(addr, false, again);
 //        TODO
         return true;
@@ -276,6 +271,13 @@ namespace flora
         ackCommand->setKind(status ? SEND_ACK_SUCCESS : SEND_ACK_FAIL);
         ackCommand->setAddress(addr->getSrcAddress());
         ackCommand->setSeqNum(packet->getSeqNum());
+        if(!status)
+        {
+            this->myHEATer->recalculateCurrentHEAT();
+            auto myCurrentHEAT = this->myHEATer->getCurrentHEAT();
+            ackCommand->setPRR(myCurrentHEAT.currentValue.PRR);
+            ackCommand->setTimeToGW(this->myHEATer->getCurrentTimeToGW());
+        }
 
         send(ackCommand, "To_Transmitter");
     }
@@ -285,36 +287,27 @@ namespace flora
         auto addr = pkt->getTag<MacAddressInd>();
         const auto &packet = pkt->peekAtFront<LoRaAppPacket>();
 
-        MacAddress oldDest = this->myHEATer->getCurrentHEAT().addr;
+        MacAddress oldDest = this->myHEATer->getCurrentPathToGW();
         this->myHEATer->updateNeighborTable(addr->getSrcAddress(), packet->getPRR(), packet->getTimeToGW());
-
-        MacAddress newDest = this->myHEATer->getCurrentHEAT().addr;
+        MacAddress newDest = this->myHEATer->getCurrentPathToGW();
 
 //        chuyen goi tin sang hang doi khac de chuyen cho neighbor moi
-        this->neighborTable->changePath(oldDest, newDest);
-
-        //        chuyen goi tin sang hang doi khac de chuyen cho neighbor moi
         this->neighborTable->changePath(oldDest, newDest);
 
         return (oldDest == newDest);
     }
 
-    bool Container::updateSendPacketState(MacAddress addr, bool state)
+    bool Container::updateSentPacketState(MacAddress addr, bool state)
     {
-
         if (state)
             this->neighborTable->popPacket(addr);
 
-        MacAddress oldDest = this->myHEATer->getCurrentHEAT().addr;
-
-        this->neighborTable->updateSendPacketState(addr, state);
-        this->myHEATer->calculateHEATField();
-
-        MacAddress newDest = this->myHEATer->getCurrentHEAT().addr;
+        MacAddress oldDest = this->myHEATer->getCurrentPathToGW();
+        this->myHEATer->updateSentState(addr, state);
+        MacAddress newDest = this->myHEATer->getCurrentPathToGW();
 
 //        chuyen goi tin sang hang doi khac de chuyen cho neighbor moi
         this->neighborTable->changePath(oldDest, newDest);
-
 
         return (oldDest == newDest);
     }

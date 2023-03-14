@@ -26,17 +26,21 @@ namespace flora
         {
             EV << "Initializing stage " << stage << ", at TDMA\n";
             this->current_slot = -1;
-            this->timeslotSize = par("timeslot_size");
+            this->timeslotSize = getParentModule()->par("timeslot_size").doubleValue();
             this->timeslot_start_time = simTime();
+            this->maxNeighbors = getParentModule()->par("max_neighbors").intValue();
+            this->maxSendAgain = getParentModule()->par("send_again_times").intValue();
+            this->sendAgainTime = getParentModule()->par("send_again_interval");
+            this->periodTimeForUpdate = getParentModule()->par("update_time_size");
 
             this->state = TDMA_STATE::IDLE;
             this->neighborTable = check_and_cast<NeighborTable* >(getParentModule()->getSubmodule("NeighborTable"));
 
             changeSlot = new cMessage("Change slot");
-            scheduleAt(simTime() + par("timeslot_size"), changeSlot);
+            scheduleAt(simTime() + timeslotSize, changeSlot);
 
             stopBroadcastMsg = new cMessage("Stop broadcast message");
-            scheduleAt(simTime() + 4000, stopBroadcastMsg);
+            scheduleAt(simTime() + par("broadcast_interval"), stopBroadcastMsg);
         }
     }
 
@@ -64,14 +68,16 @@ namespace flora
 //            debug
             this->neighborTable->printTable();
 //            end
-            this->current_slot = (this->current_slot + 1) % par("max_neighbors").intValue();
+            this->current_slot = (this->current_slot + 1) % maxNeighbors;
             this->timeslot_start_time = simTime();
             this->state = IDLE;
             EV <<"The current slot is: " << this->current_slot << endl;
-            if (!this->neighborTable->isBusySlot(current_slot) && !stopBroadcast)
+            if (!this->neighborTable->isBusySlot(current_slot ))
             {
-                grantFreeSlot = new cMessage("Broadcast free slot message");
-                scheduleAt(uniform(simTime(), simTime() + par("timeslot_size") - par("timeout_grant")), grantFreeSlot);
+                if(!stopBroadcast){
+                    grantFreeSlot = new cMessage("Broadcast free slot message");
+                    scheduleAt(uniform(simTime(), simTime() + timeslotSize - par("timeout_grant")), grantFreeSlot);
+                }
             }
             else
             {
@@ -86,10 +92,10 @@ namespace flora
                 }
 
                 timeoutForUpdate = new cMessage("Schedule to send stop update HEAT value command");
-                scheduleAt(simTime() + par("timeslot_size").doubleValue()/10, timeoutForUpdate);
+                scheduleAt(simTime() + this->periodTimeForUpdate, timeoutForUpdate);
             }
 
-            scheduleAt(simTime() + par("timeslot_size"), changeSlot);
+            scheduleAt(simTime() + timeslotSize, changeSlot);
         }
         else if (msg == grantFreeSlot)
         {
@@ -131,8 +137,8 @@ namespace flora
                 command->setSlot(request->getRequestSlot());
                 send(command, "To_Transmitter");
 
-                if (++request_again_times < par("send_again_times").intValue())
-                    scheduleAt(simTime() + par("send_again_interval"), randomRequest);
+                if (++request_again_times < maxSendAgain)
+                    scheduleAt(simTime() + sendAgainTime, randomRequest);
                 else
                 {
                     this->state = IDLE;
@@ -238,7 +244,6 @@ namespace flora
                 if (isAvailableSlot(packet->getSlot()))
                 {
                     updateCommunicationSlot(addr->getSrcAddress(), packet->getSlot(), false);
-                    updateNeighborInfo(pkt->dup());
 
                     mCommand *ACK_command = new mCommand("Accept to communicate in this time-slot");
                     ACK_command->setKind(SEND_ACCEPT_ACK);
@@ -252,7 +257,7 @@ namespace flora
                     mCommand *ACK_command = new mCommand("Refuse to communicate in this time-slot");
                     ACK_command->setKind(SEND_REFUSE_ACK);
                     ACK_command->setAddress(addr->getSrcAddress());
-                    ACK_command->setSlot(this->current_slot);
+                    ACK_command->setSlot(current_slot);
 
                     // send command for Deliverer to send a refuse acknowledge that communicate in this time-slot
                     send(ACK_command, "To_Transmitter");
@@ -278,10 +283,11 @@ namespace flora
 
         if (slotDest == -1)
             return -1;
+
         if (slotDest >= this->current_slot)
             return (slotDest - this->current_slot) * this->timeslotSize;
         else
-            return (slotDest + par("max_neighbors").intValue() - this->current_slot) * this->timeslotSize;
+            return (slotDest + maxNeighbors - this->current_slot) * this->timeslotSize;
     }
 
     void TDMA::updateNeighborInfo(Packet *pkt)

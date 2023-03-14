@@ -18,12 +18,8 @@ package flora.LoRaApp;
 simple TDMA
 {
     parameters:
-        int max_neighbors = default(10);
-        double timeslot_size @unit(s) = default(10s);
         double timeout_grant @unit(s) = default(1000ms);
-        double send_again_interval @unit(s) = default(200ms);
-        double transmittion_time @unit(s) = default(80ms);
-        int send_again_times = default(3);
+        double broadcast_interval @unit(s) = default(5400s);
         
     gates:        
         input From_Receiver @labels(TDMA/R2T);

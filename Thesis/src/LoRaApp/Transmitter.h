@@ -59,7 +59,7 @@ class Transmitter : public cSimpleModule, public ILifecycle
 //      ****************************************************** EDIT *****************************************************     //
         void sendHEAT_packet(MacAddress destination, double PRR, simtime_t timeToGW);
 
-        void sendDATA_packet(MacAddress address, void *data);
+        void sendDATA_packet(MacAddress address, void *data, double PRR, simtime_t timeToGW);
         void sendACK_packet(MacAddress destination, uint32_t seqNum, bool success);
 
         void sendFreeslot_packet(int slot, double myPRR, simtime_t timeToGW);

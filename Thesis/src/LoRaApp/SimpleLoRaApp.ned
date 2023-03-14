@@ -28,6 +28,18 @@ import flora.LoRaApp.NeighborTable;
 //
 module SimpleLoRaApp like IApp
 {
+    parameters:
+        bool iAmGateway = default(false);
+        int max_neighbors = default(10);
+        
+        double update_time_size @unit(s) = default(600ms);
+        double timeslot_size @unit(s) = default(10s);
+        double transmission_time @unit(s) = default(80ms);
+        
+        
+        double send_again_interval @unit(s) = default(200ms);
+        int send_again_times = default(3);
+    
     gates:
         input socketIn @labels(LoRaAppPacket/up);
         output socketOut @labels(LoRaAppPacket/down);

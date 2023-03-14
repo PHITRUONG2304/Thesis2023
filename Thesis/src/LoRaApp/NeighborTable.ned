@@ -18,8 +18,6 @@ package flora.LoRaApp;
 simple NeighborTable
 {
     parameters:
-        int max_neighbors = default(10);
         int last_packet_number = default(100);
-        int queue_length = default(50);
         
 }

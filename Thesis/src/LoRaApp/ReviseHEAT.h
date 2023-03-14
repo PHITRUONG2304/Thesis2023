@@ -43,6 +43,8 @@ namespace flora
         NeighborTable *neighborTable;
         int currentPath = -1;
         int sendAgainTimes = 0;
+        simtime_t sendAgainTime;
+        int maxSendAgainTimes;
 
         TDMA *myTDMA;
         Container *myContainer;
@@ -59,14 +61,15 @@ namespace flora
         virtual void handleSelfMessage(cMessage *msg);
 //        Tinh toan gia tri HEAT hien tai
         void sortNeighborTable(NeighborHEATTable *table);
+        void calculateHEATField();
 
     public:
         CurrentHEAT getCurrentHEAT() { return this->currentHEAT; }
         void updateNeighborTable(MacAddress addr, double PRR, simtime_t timeToGW);
-        void calculateHEATField();
+        void updateSentState(MacAddress addr, bool state);
         void addNewNeighborIntoTable(MacAddress addr, double PRR, simtime_t timeToGW, simtime_t timestamp);
-        int isAlreadyExistNeighbor(MacAddress addr);
-        MacAddress getCurrentPathToGW();
+        MacAddress getCurrentPathToGW() { return this->currentHEAT.addr; }
+        void recalculateCurrentHEAT();
 //        Kiem tra xem hien tai co the gui thong tin HEAT cho cac neighbor khac hay chua
         bool canUpdate() { return (currentHEAT.addr != MacAddress::UNSPECIFIED_ADDRESS) ? true : false; }
 //        Lay thoi gian goi tin den duoc gateway (bao gom waiting time and transmission time)

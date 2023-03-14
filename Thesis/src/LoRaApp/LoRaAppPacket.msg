@@ -50,6 +50,7 @@ class LoRaAppPacket extends inet::FieldsChunk {
     simtime_t generatedTime;
     double PRR;
     simtime_t timeToGW;
+    
     int slot; 
     int payload;
     uint32_t seqNum;

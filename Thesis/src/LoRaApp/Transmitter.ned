@@ -27,8 +27,7 @@ simple Transmitter
         int initialLoRaCR = default(4);
         bool initialUseHeader = default(true);
         int dataSize @unit(B) = default(10B);
-        
-	    int maxNeighbours = default(10);
+      
     gates:
         input From_Container @labels(Deliverer/C2D);
         input From_TDMA @labels(Deliverer/T2D);    

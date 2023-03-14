@@ -27,10 +27,11 @@ namespace flora
         else if (stage == INITSTAGE_APPLICATION_LAYER)
         {
             EV << "Initializing stage " << stage << ", at ReviseHEAT module\n";
-            this->iAmGateway = par("iAmGateway");
+            this->iAmGateway = getParentModule()->par("iAmGateway").boolValue();
+            this->maxSendAgainTimes = getParentModule()->par("send_again_times").intValue();
+            this->sendAgainTime = getParentModule()->par("send_again_interval");
 
-            this->currentHEAT = { MacAddress::UNSPECIFIED_ADDRESS, { par("initialPRR").doubleValue(), par("timeToGW") }};
-
+            this->currentHEAT = { MacAddress::UNSPECIFIED_ADDRESS, { par("initialPRR").doubleValue(), par("timeToGW") } };
             this->neighborTable = check_and_cast<NeighborTable* >(getParentModule()->getSubmodule("NeighborTable"));
             this->myTDMA = check_and_cast<TDMA *>(getParentModule()->getSubmodule("TDMA"));
             this->myContainer = check_and_cast<Container *>(getParentModule()->getSubmodule("Container"));
@@ -143,7 +144,7 @@ namespace flora
                     updateAgain->setAddress(command->getAddress());
                     updateAgain->setSlot(command->getSlot());
 
-                    scheduleAt(simTime() + par("send_again_interval"), updateAgain);
+                    scheduleAt(simTime() + sendAgainTime, updateAgain);
                     this->sendAgainTimes = 0;
                 }
             }
@@ -155,7 +156,7 @@ namespace flora
     {
         if(msg == updateAgain)
         {
-            if(this->sendAgainTimes < par("send_again_times").intValue())
+            if(++sendAgainTimes < maxSendAgainTimes)
             {
                 auto command = check_and_cast<mCommand *>(msg);
 
@@ -167,8 +168,7 @@ namespace flora
                 myCommand->setAddress(command->getAddress());
                 send(myCommand, "To_Transmitter");
 
-                scheduleAt(simTime() + par("send_again_interval"), updateAgain);
-                this->sendAgainTimes += 1;
+                scheduleAt(simTime() + sendAgainTime, updateAgain);
             }
             else
             {
@@ -185,6 +185,12 @@ namespace flora
         EV <<"Curren HEAT value " << this->currentHEAT.addr << ", PRR=" << this->currentHEAT.currentValue.PRR << ", timeToGW=" << this->currentHEAT.currentValue.timeToGW << endl;
     }
 
+    void ReviseHEAT::updateSentState(MacAddress addr, bool state)
+    {
+        this->neighborTable->updateSendPacketState(addr, state);
+        this->calculateHEATField();
+    }
+
     void ReviseHEAT::calculateHEATField()
     {
         if(iAmGateway)
@@ -194,18 +200,21 @@ namespace flora
         table = this->neighborTable->getCurrentHEATTable();
         this->sortNeighborTable(table);
 
+        this->currentHEAT.addr = MacAddress::UNSPECIFIED_ADDRESS;
+        this->currentHEAT.currentValue = {0, -1};
+
         for (int i = 0; i < this->neighborTable->getConnectedCurrentNeighbors(); i++)
         {
             if(!table[i].overload && table[i].PRR > 0)
             {
                 this->currentHEAT.addr = table[i].addr;
                 this->currentHEAT.currentValue = {table[i].PRR, table[i].timeToGW};
-                return;
+                break;
             }
         }
 
-        this->currentHEAT.addr = MacAddress::UNSPECIFIED_ADDRESS;
-        this->currentHEAT.currentValue = {0, -1};
+        delete table;
+
     }
 
     int compareValues(const void *a, const void *b)
@@ -236,9 +245,9 @@ namespace flora
         qsort(table, this->neighborTable->getConnectedCurrentNeighbors(), sizeof(NeighborHEATTable), compareValues);
     }
 
-    MacAddress ReviseHEAT::getCurrentPathToGW()
+    void ReviseHEAT::recalculateCurrentHEAT()
     {
-        return this->currentHEAT.addr;
+        this->calculateHEATField();
     }
 
     simtime_t ReviseHEAT::getCurrentTimeToGW()

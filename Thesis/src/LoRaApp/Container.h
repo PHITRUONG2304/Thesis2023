@@ -51,6 +51,7 @@ namespace flora
 
         MacAddress waitingAckFrom = MacAddress::UNSPECIFIED_ADDRESS;
         int sentTimes = 0;
+        int maxSendTimes;
 
         cMessage *generatePacket;
         cMessage *timeoutWaitACK;
@@ -58,6 +59,7 @@ namespace flora
 //        For statistics
         LoRaMac *macLayer;
         int generatedPacketNum = 0;
+        int generatedPacketFailNum = 0;
         StatisticalModule *sMachine;
 
     protected:
@@ -67,19 +69,20 @@ namespace flora
         virtual bool handleOperationStage(LifecycleOperation *operation, IDoneCallback *doneCallback) override;
         void handleMessage(cMessage *msg) override;
         void handleSelfMessage(cMessage *msg);
-        void stateTransitions(cMessage *msg);
         void handleWithFsm(cMessage *msg);
 
     public:
+        void generatingPacket();
+
         bool disPatchPacket(LoRaAppPacket *packet);
         bool disPatchPacket(Packet *packet);
-        void generatingPacket();
-        bool canAddMore(MacAddress addr){ return this->neighborTable->isFull(addr); }
+
         bool forwardDataPacket(MacAddress addr, /*for statics*/ bool again = false);
-        bool forwardDataPacket(Packet *pkt);
+
         void sendACKCommand(Packet *pkt, bool status);
+
         bool updateNeighborInfo(Packet *pkt);
-        bool updateSendPacketState(MacAddress addr, bool state);
+        bool updateSentPacketState(MacAddress addr, bool state);
 //        for statistic
         void updateStatisticalData(Packet *packet);
     };

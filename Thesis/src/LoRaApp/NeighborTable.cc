@@ -40,7 +40,6 @@ namespace flora
 
         LoRaAppPacket *frontElement = this->receivedPackets.front();
         delete frontElement;
-
         this->receivedPackets.pop();
     }
     void DataQueue::clear()
@@ -58,10 +57,13 @@ namespace flora
         cSimpleModule::initialize(stage);
         EV << "Initializing NeighborTable\n";
 
-        this->max_communication_neighbors = par("max_neighbors").intValue();
+        this->max_communication_neighbors = getParentModule()->par("max_neighbors").intValue();
         this->current_neighbors = 0;
 
         this->neighborTable = new NeighborInformation[max_communication_neighbors];
+        double sendDataTimeSize = getParentModule()->par("timeslot_size").doubleValue() - getParentModule()->par("update_time_size").doubleValue();
+        int queueSize = int(sendDataTimeSize/(2*getParentModule()->par("transmission_time").doubleValue()));
+
         for (int i = 0; i < this->max_communication_neighbors; i++)
         {
             this->neighborTable[i].address = MacAddress::UNSPECIFIED_ADDRESS;
@@ -71,7 +73,7 @@ namespace flora
             for(int j=0; j < par("last_packet_number").intValue(); j++)
                 this->neighborTable[i].lastState[j] = true;
 
-            this->neighborTable[i].dataQueue = DataQueue(par("queue_length").intValue());
+            this->neighborTable[i].dataQueue = DataQueue(queueSize);
             this->neighborTable[i].isBusy = false;
         }
     }
@@ -193,6 +195,20 @@ namespace flora
         return tempTable;
     }
 
+    HEAT_Field *NeighborTable::getHEATof(MacAddress addr)
+    {
+        HEAT_Field *tempHEAT = new HEAT_Field();
+        for(int i=0; i < this->max_communication_neighbors; i++)
+        {
+            if(this->neighborTable[i].address == addr)
+            {
+                tempHEAT->PRR = this->neighborTable[i].heatValue.PRR;
+                tempHEAT->timeToGW = this->neighborTable[i].heatValue.timeToGW;
+            }
+        }
+        return tempHEAT;
+    }
+
     void NeighborTable::updateSendPacketState(MacAddress address, bool state)
     {
         for(int i=0; i < this->max_communication_neighbors; i++)
@@ -214,7 +230,7 @@ namespace flora
             if(this->neighborTable[i].address == address)
                 return neighborTable[i].dataQueue.addPacket(packet);
         }
-        throw "Don't have the respective neighbor";
+        throw "Don't have the corresponding neighbor";
     }
 
     LoRaAppPacket* NeighborTable::peekPacket(MacAddress address)
@@ -228,7 +244,7 @@ namespace flora
             }
         }
 
-        throw "Don't have the respective neighbor";
+        throw "Don't have the corresponding neighbor";
     }
 
     void NeighborTable::popPacket(MacAddress address)
@@ -253,7 +269,7 @@ namespace flora
             if(this->neighborTable[i].address == address)
                 return this->neighborTable[i].dataQueue.isFull();
         }
-        throw "Don't have the respective neighbor";
+        throw "Don't have the corresponding neighbor";
     }
 
     bool NeighborTable::isEmpty(MacAddress address)
@@ -261,11 +277,9 @@ namespace flora
         for(int i=0; i < this->max_communication_neighbors; i++)
         {
             if(this->neighborTable[i].address == address)
-            {
                 return this->neighborTable[i].dataQueue.isEmpty();
-            }
         }
-        throw "Don't have the respective neighbor";
+        throw "Don't have the corresponding neighbor";
     }
 
     void NeighborTable::printTable()
@@ -321,13 +335,5 @@ namespace flora
         DataQueue tempQueue = this->neighborTable[new_index_path].dataQueue;
         this->neighborTable[new_index_path].dataQueue = this->neighborTable[old_index_path].dataQueue;
         this->neighborTable[old_index_path].dataQueue = tempQueue;
-
-//        while(!this->neighborTable[old_index_path].dataQueue.isEmpty() || !this->neighborTable[new_index_path].dataQueue.isFull())
-//        {
-//            LoRaAppPacket *tempacket =  this->neighborTable[old_index_path].dataQueue.peekPacket();
-//            this->neighborTable[new_index_path].dataQueue.addPacket(tempacket);
-//            this->neighborTable[old_index_path].dataQueue.popPacket();
-//
-//        }
     }
 }

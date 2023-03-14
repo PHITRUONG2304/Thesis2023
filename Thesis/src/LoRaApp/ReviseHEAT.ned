@@ -18,12 +18,8 @@ package flora.LoRaApp;
 simple ReviseHEAT
 {
 	parameters:
-	    bool iAmGateway = default(false);
 	    double initialPRR = default(0.0);
 	    double timeToGW @unit(s) = default(-1s);
-	    int maxNeighbour = default(10);
-	    double send_again_interval @unit(s) = default(200ms);
-	    int send_again_times = default(3);
 	    
 	gates:
         input From_Receiver @labels(ReviseHEAT/R2R);

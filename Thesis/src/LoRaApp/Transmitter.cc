@@ -86,7 +86,7 @@ Define_Module(Transmitter);
                 sendHEAT_packet(command->getAddress(), command->getPRR(), command->getTimeToGW());
                 break;
             case SEND_DATA_PACKET:
-                sendDATA_packet(command->getAddress(), (void*)command->getData());
+                sendDATA_packet(command->getAddress(), (void*)command->getData(), command->getPRR(), command->getTimeToGW());
                 break;
             case SEND_ACK_SUCCESS:
                 sendACK_packet(command->getAddress(), command->getSeqNum(), true);
@@ -124,7 +124,7 @@ Define_Module(Transmitter);
         emit(LoRa_AppPacketSent, getSF());
     }
 
-    void Transmitter::sendDATA_packet(MacAddress address, void *data)
+    void Transmitter::sendDATA_packet(MacAddress address, void *data, double PRR, simtime_t timeToGW)
     {
         auto newData = (LoRaAppPacket*)data;
         auto pktData = new Packet("Data packet");
@@ -139,6 +139,8 @@ Define_Module(Transmitter);
         payload->setPayload(newData->getPayload());
         payload->setOriginAddress(newData->getOriginAddress());
         payload->setGeneratedTime(newData->getGeneratedTime());
+        payload->setPRR(PRR);
+        payload->setTimeToGW(timeToGW);
 
 
         auto loraTag = pktData->addTagIfAbsent<LoRaTag>();
